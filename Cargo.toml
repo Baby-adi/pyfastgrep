@@ -1,0 +1,16 @@
+name = "pyfastgrep"
+version = "0.1.0"
+edition = "2021"
+
+name = "pyfastgrep"
+crate-type = ["cdylib"]
+
+pyo3 = { version = "0.20", features = ["extension-module"] }
+
+grep = "0.3"
+grep-regex = "0.1"
+grep-searcher = "0.1"
+ignore = "0.4"
+rayon = "1.8"
+crossbeam-channel = "0.5"
+globset = "0.4"
