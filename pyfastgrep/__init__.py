@@ -1,7 +1,7 @@
 from .pyfastgrep import search as _search
 from .pyfastgrep import search_iter as _search_iter
 
-def _normalize_search_options(path, glob, max_results, ignore_case, json, kwargs):
+def _normalize_search_options(path, glob, max_results, ignore_case, json, csv, output_path, kwargs):
     if "root" in kwargs:
         path = kwargs.pop("root")
     if "limit" in kwargs:
@@ -10,15 +10,23 @@ def _normalize_search_options(path, glob, max_results, ignore_case, json, kwargs
         ignore_case = kwargs.pop("case_insensitive")
     if "as_json" in kwargs:
         json = kwargs.pop("as_json")
+    if "as_csv" in kwargs:
+        kwargs["csv"] = kwargs.pop("as_csv")
+
+    csv_output = csv
+    if "csv" in kwargs:
+        csv_output = kwargs.pop("csv")
+    if "output_path" in kwargs:
+        output_path = kwargs.pop("output_path")
 
     if kwargs:
         unexpected = ", ".join(sorted(kwargs.keys()))
         raise TypeError(f"unexpected keyword argument(s): {unexpected}")
 
-    return path, glob, max_results, ignore_case, json
+    return path, glob, max_results, ignore_case, json, csv_output, output_path
 
 
-def search(pattern, path=".", glob=None, max_results=None, ignore_case=False, json=False, **kwargs):
+def search(pattern, path=".", glob=None, max_results=None, ignore_case=False, json=False, csv=False, output_path=None, **kwargs):
     """
     Search for a pattern in files.
     
@@ -33,12 +41,12 @@ def search(pattern, path=".", glob=None, max_results=None, ignore_case=False, js
     Returns:
         List of tuples (file, line, content) or JSON objects if json=True
     """
-    path, glob, max_results, ignore_case, json = _normalize_search_options(
-        path, glob, max_results, ignore_case, json, kwargs
+    path, glob, max_results, ignore_case, json, csv, output_path = _normalize_search_options(
+        path, glob, max_results, ignore_case, json, csv, output_path, kwargs
     )
-    return _search(pattern, path, glob, max_results, ignore_case, json)
+    return _search(pattern, path, glob, max_results, ignore_case, json, csv, output_path)
 
-def search_iter(pattern, path=".", glob=None, ignore_case=False, json=False, **kwargs):
+def search_iter(pattern, path=".", glob=None, ignore_case=False, json=False, csv=False, output_path=None, **kwargs):
     """
     Streaming iterator search for a pattern in files.
     
@@ -52,7 +60,7 @@ def search_iter(pattern, path=".", glob=None, ignore_case=False, json=False, **k
     Returns:
         Iterator yielding tuples (file, line, content) or JSON objects if json=True
     """
-    path, glob, _, ignore_case, json = _normalize_search_options(
-        path, glob, None, ignore_case, json, kwargs
+    path, glob, _, ignore_case, json, csv, output_path = _normalize_search_options(
+        path, glob, None, ignore_case, json, csv, output_path, kwargs
     )
-    return _search_iter(pattern, path, glob, ignore_case, json)
+    return _search_iter(pattern, path, glob, ignore_case, json, csv, output_path)

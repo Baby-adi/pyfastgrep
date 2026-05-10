@@ -1,6 +1,41 @@
-use pyfastgrep_core::{search, SearchConfig};
+use pyfastgrep_core::{search, SearchConfig, SearchHit};
 use std::env;
+use std::fs::File;
+use std::io::Write;
 use std::path::PathBuf;
+
+fn csv_escape(value: &str) -> String {
+    if value.contains(',') || value.contains('"') || value.contains('\n') || value.contains('\r') {
+        format!("\"{}\"", value.replace('"', "\"\""))
+    } else {
+        value.to_string()
+    }
+}
+
+fn hit_to_csv_row(hit: &SearchHit) -> String {
+    format!(
+        "{},{},{}\n",
+        csv_escape(&hit.file),
+        hit.line,
+        csv_escape(hit.content.trim_end())
+    )
+}
+
+fn hits_to_csv(hits: &[SearchHit]) -> String {
+    let mut output = String::from("file,line,content\n");
+
+    for hit in hits {
+        output.push_str(&hit_to_csv_row(hit));
+    }
+
+    output
+}
+
+fn write_csv_file(path: &str, csv_content: &str) -> Result<(), String> {
+    let mut file = File::create(path).map_err(|e| e.to_string())?;
+    file.write_all(csv_content.as_bytes()).map_err(|e| e.to_string())?;
+    Ok(())
+}
 
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
@@ -16,6 +51,8 @@ fn main() {
     let mut max_results: Option<usize> = None;
     let mut ignore_case = false;
     let mut json = false;
+    let mut csv = false;
+    let mut output_path: Option<String> = None;
 
     let mut i = 0;
     while i < args.len() {
@@ -41,6 +78,17 @@ fn main() {
             }
             "-j" | "--json" => {
                 json = true;
+            }
+            "-c" | "--csv" => {
+                csv = true;
+            }
+            "-o" | "--output" => {
+                i += 1;
+                if i >= args.len() {
+                    eprintln!("Missing value for --output");
+                    std::process::exit(1);
+                }
+                output_path = Some(args[i].clone());
             }
             "-r" | "--root" => {
                 i += 1;
@@ -77,6 +125,16 @@ fn main() {
         std::process::exit(1);
     };
 
+    if json && csv {
+        eprintln!("Error: --json and --csv are mutually exclusive");
+        std::process::exit(1);
+    }
+
+    if output_path.is_some() && !csv {
+        eprintln!("Error: --output is only supported with --csv");
+        std::process::exit(1);
+    }
+
     let mut config = SearchConfig::new(pattern, root);
     config.glob = glob;
     config.max_results = max_results;
@@ -86,6 +144,15 @@ fn main() {
         Ok(results) => {
             if json {
                 println!("{}", serde_json::to_string_pretty(&results).unwrap());
+            } else if csv {
+                let csv_output = hits_to_csv(&results);
+                if let Some(path) = output_path.as_deref() {
+                    if let Err(err) = write_csv_file(path, &csv_output) {
+                        eprintln!("Error writing CSV output: {err}");
+                        std::process::exit(1);
+                    }
+                }
+                print!("{}", csv_output);
             } else {
                 for hit in results {
                     println!("{}:{}: {}", hit.file, hit.line, hit.content.trim_end());
@@ -101,6 +168,6 @@ fn main() {
 
 fn print_usage() {
     eprintln!(
-        "Usage: pyfastgrep <pattern> [root] [--glob <pattern>] [--limit <n>] [--ignore-case] [--json] [--root <path>]"
+        "Usage: pyfastgrep <pattern> [root] [--glob <pattern>] [--limit <n>] [--ignore-case] [--json] [--csv] [--output <file>] [--root <path>]"
     );
 }
