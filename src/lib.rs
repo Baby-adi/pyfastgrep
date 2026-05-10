@@ -1,6 +1,7 @@
 use pyo3::prelude::*;
+use serde_json::{json, Value};
 
-use grep::regex::{RegexMatcher, RegexMatcherBuilder};
+use grep::regex::RegexMatcherBuilder;
 use grep::searcher::{SearcherBuilder, sinks::UTF8};
 use ignore::WalkBuilder;
 
@@ -31,8 +32,10 @@ fn search(
     glob: Option<String>,
     max_results: Option<usize>,
     ignore_case: Option<bool>,
-) -> PyResult<Vec<(String, usize, String)>> {
+    json: Option<bool>,
+) -> PyResult<PyObject> {
     let is_case_insensitive = ignore_case.unwrap_or(false);
+    let return_json = json.unwrap_or(false);
     let matcher = RegexMatcherBuilder::new()
         .case_insensitive(is_case_insensitive)
         .build(&pattern)
@@ -95,13 +98,35 @@ fn search(
         .into_inner()
         .unwrap();
 
-    Ok(final_results)
+    if return_json {
+        let json_results: Vec<Value> = final_results.into_iter()
+            .map(|(file, line, content)| {
+                json!({
+                    "file": file,
+                    "line": line,
+                    "content": content.trim_end()
+                })
+            })
+            .collect();
+        
+        let json_string = serde_json::to_string(&json_results).unwrap();
+        Python::with_gil(|py| {
+            let json_module = py.import("json")?;
+            let json_obj = json_module.call_method("loads", (json_string,), None)?;
+            Ok(json_obj.into())
+        })
+    } else {
+        Python::with_gil(|py| {
+            Ok(final_results.into_py(py))
+        })
+    }
 }
 
 // streaming iterator 
 #[pyclass]
 struct PyResultIterator {
     receiver: Receiver<(String, usize, String)>,
+    json_mode: bool,
 }
 
 #[pymethods]
@@ -110,8 +135,26 @@ impl PyResultIterator {
         slf.into()
     }
 
-    fn __next__(slf: PyRefMut<Self>)-> Option<(String, usize, String)> {
-        slf.receiver.recv().ok()
+    fn __next__(slf: PyRefMut<Self>) -> Option<PyObject> {
+        if let Some((file, line, content)) = slf.receiver.recv().ok() {
+            if slf.json_mode {
+                let py = slf.py();
+                let json_obj = json!({
+                    "file": file,
+                    "line": line,
+                    "content": content.trim_end()
+                });
+                let json_string = serde_json::to_string(&json_obj).unwrap();
+                match py.import("json").and_then(|m| m.call_method("loads", (json_string,), None)) {
+                    Ok(parsed) => Some(parsed.into()),
+                    Err(_) => None,
+                }
+            } else {
+                Some((file, line, content).into_py(slf.py()))
+            }
+        } else {
+            None
+        }
     }
 }
 
@@ -121,10 +164,12 @@ fn search_iter(
     root: String,
     glob: Option<String>,
     ignore_case: Option<bool>,
+    json: Option<bool>,
 ) -> PyResult<PyResultIterator> {
     let (tx, rx) = bounded(1000);
 
     let is_case_insensitive = ignore_case.unwrap_or(false);
+    let return_json = json.unwrap_or(false);
 
     thread::spawn(move || {
         let matcher = match RegexMatcherBuilder::new()
@@ -183,7 +228,7 @@ fn search_iter(
         }
     });
 
-    Ok(PyResultIterator { receiver: rx })
+    Ok(PyResultIterator { receiver: rx, json_mode: return_json })
 }
 
 // python module

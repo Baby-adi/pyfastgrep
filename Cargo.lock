@@ -328,6 +328,7 @@ dependencies = [
  "ignore",
  "pyo3",
  "rayon",
+ "serde_json",
 ]
 
 [[package]]

@@ -1,27 +1,88 @@
-import pyfastgrep
 import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+sys.path.insert(0, str(REPO_ROOT))
+
+import pyfastgrep
+
+
+def run_test(name, func):
+    try:
+        func()
+        print(f"PASS: {name}")
+        return True
+    except AssertionError as exc:
+        print(f"FAIL: {name} - {exc}")
+        return False
+
 
 def main():
     print("Running pyfastgrep test suite...")
-    
-    # 1. Test basic case-sensitive search
-    # Searching for uppercase 'FN' which shouldn't match lowercase 'fn'
-    res_sensitive = pyfastgrep.search("FN", "src", "*.rs", None, False)
-    assert len(res_sensitive) == 0, f"Expected 0 results for case-sensitive 'FN', got {len(res_sensitive)}"
-    
-    # 2. Test ignore_case search
-    res_ignore = pyfastgrep.search("FN", "src", "*.rs", None, True)
-    assert len(res_ignore) > 0, "Expected >0 results for 'FN' with ignore_case=True"
-    
-    # 3. Test iterator search
-    iter_ignore = list(pyfastgrep.search_iter("FN", "src", "*.rs", True))
-    assert len(iter_ignore) == len(res_ignore), "Batch and Iter search results count mismatch"
+    source_root = str(REPO_ROOT / "src")
+
+    def test_case_sensitive_search():
+        res_sensitive = pyfastgrep.search("FN", source_root, "*.rs", None, False, False)
+        assert len(res_sensitive) == 0, f"Expected 0 results for case-sensitive 'FN', got {len(res_sensitive)}"
+
+    def test_ignore_case_search():
+        res_ignore = pyfastgrep.search("FN", source_root, "*.rs", None, True, False)
+        assert len(res_ignore) > 0, "Expected >0 results for 'FN' with ignore_case=True"
+
+    def test_iterator_matches_batch():
+        res_ignore = pyfastgrep.search("FN", source_root, "*.rs", None, True, False)
+        iter_ignore = list(pyfastgrep.search_iter("FN", source_root, "*.rs", True, False))
+        assert len(iter_ignore) == len(res_ignore), "Batch and iterator search result counts should match"
+
+    def test_json_output():
+        json_results = pyfastgrep.search("fn", source_root, "*.rs", None, False, True)
+        json_iter = list(pyfastgrep.search_iter("fn", source_root, "*.rs", False, True))
+
+        assert len(json_results) > 0, "Expected >0 results for JSON batch search"
+        assert len(json_iter) > 0, "Expected >0 results for JSON iterator search"
+        assert isinstance(json_results[0], dict), "JSON batch results should contain dicts"
+        assert isinstance(json_iter[0], dict), "JSON iterator results should contain dicts"
+        assert {'file', 'line', 'content'} <= set(json_results[0].keys()), "JSON results should have file, line, and content keys"
+
+    def test_legacy_output_and_consistency():
+        json_results = pyfastgrep.search("fn", source_root, "*.rs", None, False, True)
+        legacy_results = pyfastgrep.search("fn", source_root, "*.rs", None, False, False)
+
+        assert len(legacy_results) > 0, "Expected >0 results for legacy search"
+        assert isinstance(legacy_results[0], tuple), "Legacy results should contain tuples"
+        assert len(legacy_results[0]) == 3, "Legacy tuples should have 3 elements"
+        assert json_results[0]['file'] == legacy_results[0][0], "File paths should match between JSON and legacy"
+        assert json_results[0]['line'] == legacy_results[0][1], "Line numbers should match between JSON and legacy"
+        assert json_results[0]['content'].strip() == legacy_results[0][2].strip(), "Content should match between JSON and legacy"
+
+    tests = [
+        ("Case-sensitive search returns no matches", test_case_sensitive_search),
+        ("Ignore-case batch search finds matches", test_ignore_case_search),
+        ("Iterator search matches batch count", test_iterator_matches_batch),
+        ("JSON output works for batch and iterator", test_json_output),
+        ("Legacy tuple output stays compatible", test_legacy_output_and_consistency),
+    ]
+
+    passed = 0
+    failed = 0
+
+    for name, func in tests:
+        if run_test(name, func):
+            passed += 1
+        else:
+            failed += 1
+
+    print("\nTest Summary")
+    print(f"Total: {len(tests)}")
+    print(f"Passed: {passed}")
+    print(f"Failed: {failed}")
+
+    if failed:
+        sys.exit(1)
 
     print("All tests passed successfully!")
 
+
 if __name__ == "__main__":
-    try:
-        main()
-    except AssertionError as e:
-        print(f"TEST FAILED: {e}")
-        sys.exit(1)
+    main()
