@@ -4,8 +4,9 @@ build-backend = "maturin"
 
 [project]
 name = "pyfastgrep"
-version = "0.1.0"
-description = "Fast code search using ripgrep engine from Python"
+version = "0.1.1"
+description = "ripgrep powered search inside python without subprocess overhead"
+readme = "README.md"
 authors = [{ name = "Your Name" }]
 requires-python = ">=3.8"
 
