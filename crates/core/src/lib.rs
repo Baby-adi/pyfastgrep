@@ -1,12 +1,11 @@
 use crossbeam_channel::{bounded, Receiver};
 use globset::{Glob, GlobSet, GlobSetBuilder};
-use grep::regex::RegexMatcherBuilder;
+use grep::regex::{RegexMatcher, RegexMatcherBuilder};
 use grep::searcher::{sinks::UTF8, SearcherBuilder};
 use ignore::WalkBuilder;
 use rayon::prelude::*;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
 use std::thread;
 
 #[derive(Clone, Debug)]
@@ -42,46 +41,19 @@ pub type SearchReceiver = Receiver<SearchHit>;
 pub fn search(config: &SearchConfig) -> Result<Vec<SearchHit>, String> {
     let matcher = build_matcher(&config.pattern, config.ignore_case)?;
     let glob_matcher = build_glob(&config.glob)?;
-    let results = Arc::new(Mutex::new(Vec::new()));
     let paths = collect_paths(&config.root, &glob_matcher);
 
-    paths.par_iter().for_each(|path| {
-        let Some(metadata) = path.metadata().ok() else {
-            return;
-        };
+    let mut results: Vec<SearchHit> = paths
+        .par_iter()
+        .map(|path| search_file(path, &matcher))
+        .flatten()
+        .collect();
 
-        if metadata.len() == 0 {
-            return;
-        }
+    if let Some(max_results) = config.max_results {
+        results.truncate(max_results);
+    }
 
-        let mut searcher = SearcherBuilder::new().build();
-        let results = Arc::clone(&results);
-        let max_results = config.max_results;
-
-        let _ = searcher.search_path(
-            &matcher,
-            path,
-            UTF8(|lnum, line| {
-                let mut res = results.lock().unwrap();
-
-                if let Some(max) = max_results {
-                    if res.len() >= max {
-                        return Ok(false);
-                    }
-                }
-
-                res.push(SearchHit {
-                    file: path.display().to_string(),
-                    line: lnum as usize,
-                    content: line.to_string(),
-                });
-
-                Ok(true)
-            }),
-        );
-    });
-
-    Ok(Arc::try_unwrap(results).unwrap().into_inner().unwrap())
+    Ok(results)
 }
 
 pub fn search_stream(config: SearchConfig) -> Result<SearchReceiver, String> {
@@ -152,11 +124,40 @@ fn build_glob(glob: &Option<String>) -> Result<Option<GlobSet>, String> {
     }
 }
 
-fn build_matcher(pattern: &str, ignore_case: bool) -> Result<grep::regex::RegexMatcher, String> {
+fn build_matcher(pattern: &str, ignore_case: bool) -> Result<RegexMatcher, String> {
     RegexMatcherBuilder::new()
         .case_insensitive(ignore_case)
         .build(pattern)
         .map_err(|e| e.to_string())
+}
+
+fn search_file(path: &Path, matcher: &RegexMatcher) -> Vec<SearchHit> {
+    let Some(metadata) = path.metadata().ok() else {
+        return Vec::new();
+    };
+
+    if metadata.len() == 0 {
+        return Vec::new();
+    }
+
+    let mut hits = Vec::new();
+    let mut searcher = SearcherBuilder::new().build();
+
+    let _ = searcher.search_path(
+        matcher,
+        path,
+        UTF8(|lnum, line| {
+            hits.push(SearchHit {
+                file: path.display().to_string(),
+                line: lnum as usize,
+                content: line.to_string(),
+            });
+
+            Ok(true)
+        }),
+    );
+
+    hits
 }
 
 fn collect_paths(root: &Path, glob_matcher: &Option<GlobSet>) -> Vec<PathBuf> {

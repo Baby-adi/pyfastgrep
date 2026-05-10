@@ -1,4 +1,5 @@
 use pyo3::prelude::*;
+use pyo3::exceptions::PyValueError;
 use pyfastgrep_core::{search as core_search, search_stream as core_search_stream, SearchConfig, SearchHit, SearchReceiver};
 use serde_json::{json, Value};
 use std::path::PathBuf;
@@ -57,7 +58,7 @@ fn search(
 ) -> PyResult<PyObject> {
     let config = build_config(pattern, root, glob, max_results, ignore_case);
     let return_json = json.unwrap_or(false);
-    let hits = core_search(&config).map_err(pyo3::exceptions::PyValueError::new_err)?;
+    let hits = core_search(&config).map_err(PyValueError::new_err)?;
 
     Python::with_gil(|py| {
         if return_json {
@@ -110,7 +111,7 @@ fn search_iter(
     json: Option<bool>,
 ) -> PyResult<PyResultIterator> {
     let config = build_config(pattern, root, glob, None, ignore_case);
-    let receiver = core_search_stream(config).map_err(pyo3::exceptions::PyValueError::new_err)?;
+    let receiver = core_search_stream(config).map_err(PyValueError::new_err)?;
 
     Ok(PyResultIterator {
         receiver,
