@@ -1,0 +1,64 @@
+#!/bin/sh
+set -eu
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+echo "================================================="
+echo "Running repo-local pre-push checks for pyfastgrep..."
+echo "================================================="
+
+unset CC
+unset MACOSX_DEPLOYMENT_TARGET
+unset SOURCE_DATE_EPOCH
+unset IPHONEOS_DEPLOYMENT_TARGET
+
+find_python_with_maturin() {
+    if [ -n "${VIRTUAL_ENV:-}" ] && [ -x "$VIRTUAL_ENV/bin/python" ] && "$VIRTUAL_ENV/bin/python" -m maturin --help >/dev/null 2>&1; then
+        printf '%s\n' "$VIRTUAL_ENV/bin/python"
+        return 0
+    fi
+
+    for candidate in \
+        "$REPO_ROOT/.venv/bin/python" \
+        "$REPO_ROOT/venv/bin/python" \
+        "$(command -v python3 2>/dev/null || true)" \
+        "$(command -v python 2>/dev/null || true)"
+    do
+        if [ -n "$candidate" ] && [ -x "$candidate" ] && "$candidate" -m maturin --help >/dev/null 2>&1; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+PYTHON_CMD="$(find_python_with_maturin || true)"
+if [ -z "$PYTHON_CMD" ]; then
+    echo "Error: could not find a Python interpreter with maturin installed."
+    echo "Activate a virtualenv with maturin or install maturin into .venv or venv."
+    exit 1
+fi
+
+case "$PYTHON_CMD" in
+    */bin/python)
+        VENV_ROOT="$(dirname "$(dirname "$PYTHON_CMD")")"
+        export VIRTUAL_ENV="$VENV_ROOT"
+        export PATH="$VENV_ROOT/bin:$PATH"
+        ;;
+esac
+
+echo "Using Python interpreter: $PYTHON_CMD"
+
+echo "Running cargo check..."
+cargo check --all-targets
+
+echo "Rebuilding extension with maturin..."
+"$PYTHON_CMD" -m maturin develop
+
+echo "Running mandatory test suite..."
+"$PYTHON_CMD" tests/mandatory_tests.py
+
+echo "All pre-push checks passed."
+echo "================================================="

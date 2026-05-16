@@ -21,7 +21,12 @@
    pip install maturin pytest
    ```
 
-4. Build the extension:
+4. Enable the repo-local git hooks for this clone:
+   ```bash
+   bash setup-hooks.sh
+   ```
+
+5. Build the extension:
    ```bash
    maturin develop
    ```
@@ -31,6 +36,7 @@
 - `crates/core/` holds the shared search engine
 - `pyfastgrep/` holds the Python binding layer
 - `cli/` holds the thin command line interface
+- `.githooks/pre-push` holds the tracked repo-local pre-push hook
 
 ## Running Tests
 
@@ -44,3 +50,14 @@ python tests/mandatory_tests.py
 2. Run `maturin develop` to rebuild the extension
 3. Test your changes: `python tests/mandatory_tests.py`
 4. Commit and push once the local checks are green
+
+## Git Hooks
+
+After you run `bash setup-hooks.sh`, this clone uses the tracked `.githooks/pre-push` hook.
+
+The pre-push hook will:
+- Run `cargo check --all-targets`
+- Rebuild the extension with `maturin develop`
+- Run `python tests/mandatory_tests.py`
+
+If any step fails, the push is aborted.
