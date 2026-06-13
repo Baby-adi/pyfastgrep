@@ -298,6 +298,44 @@ def main():
         assert cli_result.returncode == 0, f"CLI AST exited with {cli_result.returncode}: {cli_result.stderr}"
         assert "src/" in cli_result.stdout, "CLI AST output should include a src/ file"
 
+    def test_context_search():
+        results = pyfastgrep.search_with_context("fn", source_root, "*.rs", before_context=2, after_context=2)
+        assert len(results) > 0, "Context search should find matches"
+        first = results[0]
+        assert len(first) == 5, "Result should be (file, line, content, before, after)"
+        assert len(first[3]) <= 2, "before_context should be at most 2 lines"
+        assert len(first[4]) <= 2, "after_context should be at most 2 lines"
+
+    def test_context_search_zero():
+        results = pyfastgrep.search_with_context("fn", source_root, "*.rs")
+        first = results[0]
+        assert len(first[3]) == 0, "Zero before_context by default"
+        assert len(first[4]) == 0, "Zero after_context by default"
+
+    def test_cli_context():
+        cli_result = subprocess.run(
+            [
+                "cargo",
+                "run",
+                "-p",
+                "pyfastgrep-cli",
+                "--",
+                "fn",
+                "src",
+                "--glob",
+                "*.rs",
+                "--context",
+                "1",
+            ],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+        )
+        assert cli_result.returncode == 0, f"CLI context exited with {cli_result.returncode}: {cli_result.stderr}"
+        # Should have context lines with '-' prefix and matches with ':'
+        assert "-" in cli_result.stdout, "CLI context should have context lines"
+        assert ":" in cli_result.stdout, "CLI context should have match lines"
+
     tests = [
         ("Case-sensitive search returns no matches", test_case_sensitive_search),
         ("Ignore-case batch search finds matches", test_ignore_case_search),
@@ -316,6 +354,9 @@ def main():
         ("Fixed strings matches fewer than regex", test_fixed_strings_vs_regex),
         ("Fixed strings count matches regex for literal", test_fixed_strings_count),
         ("CLI --fixed-strings works", test_cli_fixed_strings),
+        ("Context search returns correct structure", test_context_search),
+        ("Context search zero context works", test_context_search_zero),
+        ("CLI --context works", test_cli_context),
         ("Ergonomic aliases work", test_ergonomic_aliases),
         ("AST function search finds matches", test_ast_functions),
         ("AST class search finds matches", test_ast_classes),

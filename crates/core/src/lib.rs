@@ -2,6 +2,7 @@ use serde::Serialize;
 use std::path::PathBuf;
 
 pub mod ast_search;
+pub mod context_search;
 pub mod regex_search;
 pub mod regex_stream;
 pub mod utils;
@@ -50,3 +51,6 @@ pub use regex_stream::search_stream;
 
 // Re-export AST search
 pub use ast_search::{search_ast, search_ast_stream, AstQueryType, AstResultReceiver};
+
+// Re-export context search
+pub use context_search::{search_with_context, ContextConfig, SearchHitWithContext};

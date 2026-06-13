@@ -1,6 +1,7 @@
 use pyfastgrep_core::{
-    search, search_count, search_files_with_matches,
+    search, search_count, search_files_with_matches, search_with_context,
     search_ast, AstQueryType, SearchConfig, SearchHit,
+    ContextConfig,
 };
 use std::env;
 use std::fs::File;
@@ -48,6 +49,22 @@ fn write_csv_file(path: &str, csv_content: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn print_regular_hit(hit: &SearchHit) {
+    println!("{}:{}: {}", hit.file, hit.line, hit.content.trim_end());
+}
+
+macro_rules! print_json {
+    ($value:expr) => {
+        match serde_json::to_string_pretty($value) {
+            Ok(json_str) => println!("{}", json_str),
+            Err(err) => {
+                eprintln!("Error serializing to JSON: {err}");
+                std::process::exit(1);
+            }
+        }
+    };
+}
+
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
 
@@ -67,6 +84,9 @@ fn main() {
     let mut count = false;
     let mut files_with_matches = false;
     let mut fixed_strings = false;
+    let mut before_context: Option<usize> = None;
+    let mut after_context: Option<usize> = None;
+    let mut context: Option<usize> = None;
     let mut ast_mode: Option<AstQueryType> = None;
 
     let mut i = 0;
@@ -122,6 +142,30 @@ fn main() {
             "-F" | "--fixed-strings" => {
                 fixed_strings = true;
             }
+            "-A" | "--after-context" => {
+                i += 1;
+                if i >= args.len() {
+                    eprintln!("Missing value for --after-context");
+                    std::process::exit(1);
+                }
+                after_context = args[i].parse::<usize>().ok();
+            }
+            "-B" | "--before-context" => {
+                i += 1;
+                if i >= args.len() {
+                    eprintln!("Missing value for --before-context");
+                    std::process::exit(1);
+                }
+                before_context = args[i].parse::<usize>().ok();
+            }
+            "-C" | "--context" => {
+                i += 1;
+                if i >= args.len() {
+                    eprintln!("Missing value for --context");
+                    std::process::exit(1);
+                }
+                context = args[i].parse::<usize>().ok();
+            }
             "--functions" => {
                 ast_mode = Some(AstQueryType::Function);
             }
@@ -158,6 +202,11 @@ fn main() {
         std::process::exit(1);
     };
 
+    // Resolve context values: -C sets both -A and -B
+    let resolved_before = before_context.or(context).unwrap_or(0);
+    let resolved_after = after_context.or(context).unwrap_or(0);
+    let has_context = resolved_before > 0 || resolved_after > 0;
+
     // Mutually exclusive format flags
     let format_flags = [("--json", json), ("--csv", csv)];
     let active_formats: Vec<&str> = format_flags
@@ -190,12 +239,12 @@ fn main() {
         std::process::exit(1);
     }
 
-    if count || files_with_matches {
-        if ast_mode.is_some() {
-            eprintln!("Error: AST search does not support --count or --files-with-matches");
-            std::process::exit(1);
-        }
+    if has_context && (count || files_with_matches || ast_mode.is_some()) {
+        eprintln!("Error: --context is not supported with --count, --files-with-matches, or AST search");
+        std::process::exit(1);
+    }
 
+    if count || files_with_matches {
         let mut config = SearchConfig::new(pattern, root);
         config.glob = glob;
         config.ignore_case = ignore_case;
@@ -214,7 +263,7 @@ fn main() {
                                 })
                             })
                             .collect();
-                        println!("{}", serde_json::to_string_pretty(&json_results).unwrap());
+                        print_json!(&json_results);
                     } else if csv {
                         let csv_output = count_results_to_csv(&results);
                         if let Some(path) = output_path.as_deref() {
@@ -239,7 +288,7 @@ fn main() {
             match search_files_with_matches(&config) {
                 Ok(results) => {
                     if json {
-                        println!("{}", serde_json::to_string_pretty(&results).unwrap());
+                        print_json!(&results);
                     } else if csv {
                         let mut output = String::from("file\n");
                         for file in &results {
@@ -274,7 +323,7 @@ fn main() {
                     .collect();
 
                 if json {
-                    println!("{}", serde_json::to_string_pretty(&hits).unwrap());
+                    print_json!(&hits);
                 } else if csv {
                     let csv_output = hits_to_csv(&hits);
                     if let Some(path) = output_path.as_deref() {
@@ -286,7 +335,51 @@ fn main() {
                     print!("{}", csv_output);
                 } else {
                     for hit in hits {
-                        println!("{}:{}: {}", hit.file, hit.line, hit.content.trim_end());
+                        print_regular_hit(&hit);
+                    }
+                }
+            }
+            Err(err) => {
+                eprintln!("Error: {err}");
+                std::process::exit(1);
+            }
+        }
+    } else if has_context {
+        // Context search
+        let mut config = ContextConfig {
+            base: SearchConfig::new(pattern, root),
+            before_context: resolved_before,
+            after_context: resolved_after,
+        };
+        config.base.glob = glob;
+        config.base.ignore_case = ignore_case;
+        config.base.fixed_strings = fixed_strings;
+        config.base.max_results = max_results;
+
+        match search_with_context(&config) {
+            Ok(results) => {
+                if json {
+                    match serde_json::to_string_pretty(&results) {
+                        Ok(json_str) => println!("{}", json_str),
+                        Err(err) => {
+                            eprintln!("Error serializing JSON: {err}");
+                            std::process::exit(1);
+                        }
+                    }
+                } else {
+                    for hit in results {
+                        // Print before context
+                        for (idx, line) in hit.before_context.iter().enumerate() {
+                            let ctx_line = hit.line - hit.before_context.len() + idx;
+                            println!("{}-{}-{}", hit.file, ctx_line, line.content.trim_end());
+                        }
+                        // Print match
+                        println!("{}:{}:{}", hit.file, hit.line, hit.content.trim_end());
+                        // Print after context
+                        for (idx, line) in hit.after_context.iter().enumerate() {
+                            let ctx_line = hit.line + 1 + idx;
+                            println!("{}-{}-{}", hit.file, ctx_line, line.content.trim_end());
+                        }
                     }
                 }
             }
@@ -296,7 +389,7 @@ fn main() {
             }
         }
     } else {
-        // Regex search
+        // Regular regex search
         let mut config = SearchConfig::new(pattern, root);
         config.glob = glob;
         config.max_results = max_results;
@@ -306,7 +399,7 @@ fn main() {
         match search(&config) {
             Ok(results) => {
                 if json {
-                    println!("{}", serde_json::to_string_pretty(&results).unwrap());
+                    print_json!(&results);
                 } else if csv {
                     let csv_output = hits_to_csv(&results);
                     if let Some(path) = output_path.as_deref() {
@@ -318,7 +411,7 @@ fn main() {
                     print!("{}", csv_output);
                 } else {
                     for hit in results {
-                        println!("{}:{}: {}", hit.file, hit.line, hit.content.trim_end());
+                        print_regular_hit(&hit);
                     }
                 }
             }
@@ -332,6 +425,6 @@ fn main() {
 
 fn print_usage() {
     eprintln!(
-        "Usage: pyfastgrep <pattern> [root] [--glob <pattern>] [--limit <n>] [--ignore-case] [--fixed-strings] [--json] [--csv] [--output <file>] [--root <path>] [--count] [--files-with-matches] [--functions] [--classes] [--imports]"
+        "Usage: pyfastgrep <pattern> [root] [--glob <pattern>] [--limit <n>] [--ignore-case] [--fixed-strings] [--json] [--csv] [--output <file>] [--root <path>] [--count] [--files-with-matches] [--context <n>] [--before-context <n>] [--after-context <n>] [--functions] [--classes] [--imports]"
     );
 }
