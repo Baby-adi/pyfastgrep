@@ -21,6 +21,7 @@ pub struct SearchConfig {
     pub glob: Option<String>,
     pub max_results: Option<usize>,
     pub ignore_case: bool,
+    pub fixed_strings: bool,
 }
 
 impl SearchConfig {
@@ -31,6 +32,7 @@ impl SearchConfig {
             glob: None,
             max_results: None,
             ignore_case: false,
+            fixed_strings: false,
         }
     }
 }
@@ -45,7 +47,7 @@ pub struct SearchHit {
 pub type SearchReceiver = Receiver<SearchHit>;
 
 pub fn search(config: &SearchConfig) -> Result<Vec<SearchHit>, String> {
-    let matcher = build_matcher(&config.pattern, config.ignore_case)?;
+    let matcher = build_matcher(&config.pattern, config.ignore_case, config.fixed_strings)?;
     let glob_matcher = build_glob(&config.glob)?;
     let paths = collect_paths(&config.root, &glob_matcher);
 
@@ -63,7 +65,7 @@ pub fn search(config: &SearchConfig) -> Result<Vec<SearchHit>, String> {
 }
 
 pub fn search_count(config: &SearchConfig) -> Result<Vec<(String, usize)>, String> {
-    let matcher = build_matcher(&config.pattern, config.ignore_case)?;
+    let matcher = build_matcher(&config.pattern, config.ignore_case, config.fixed_strings)?;
     let glob_matcher = build_glob(&config.glob)?;
     let paths = collect_paths(&config.root, &glob_matcher);
 
@@ -83,7 +85,7 @@ pub fn search_count(config: &SearchConfig) -> Result<Vec<(String, usize)>, Strin
 }
 
 pub fn search_files_with_matches(config: &SearchConfig) -> Result<Vec<String>, String> {
-    let matcher = build_matcher(&config.pattern, config.ignore_case)?;
+    let matcher = build_matcher(&config.pattern, config.ignore_case, config.fixed_strings)?;
     let glob_matcher = build_glob(&config.glob)?;
     let paths = collect_paths(&config.root, &glob_matcher);
 
@@ -102,7 +104,7 @@ pub fn search_files_with_matches(config: &SearchConfig) -> Result<Vec<String>, S
 }
 
 pub fn search_stream(config: SearchConfig) -> Result<SearchReceiver, String> {
-    let matcher = build_matcher(&config.pattern, config.ignore_case)?;
+    let matcher = build_matcher(&config.pattern, config.ignore_case, config.fixed_strings)?;
     let glob_matcher = build_glob(&config.glob)?;
     let (tx, rx) = bounded(1000);
 
@@ -328,9 +330,10 @@ fn build_glob(glob: &Option<String>) -> Result<Option<GlobSet>, String> {
     }
 }
 
-fn build_matcher(pattern: &str, ignore_case: bool) -> Result<RegexMatcher, String> {
+fn build_matcher(pattern: &str, ignore_case: bool, fixed_strings: bool) -> Result<RegexMatcher, String> {
     RegexMatcherBuilder::new()
         .case_insensitive(ignore_case)
+        .fixed_strings(fixed_strings)
         .build(pattern)
         .map_err(|e| e.to_string())
 }

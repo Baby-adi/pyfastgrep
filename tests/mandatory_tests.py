@@ -256,6 +256,26 @@ def main():
         assert isinstance(parsed, list), "JSON count should be a list"
         assert all("file" in item and "count" in item for item in parsed), "Each item should have file and count keys"
 
+    def test_fixed_strings_vs_regex():
+        regex_results = pyfastgrep.search(".", source_root, "*.rs")
+        literal_results = pyfastgrep.search(".", source_root, "*.rs", fixed_strings=True)
+        assert len(literal_results) < len(regex_results), "Fixed strings should match fewer occurrences of literal '.'"
+
+    def test_fixed_strings_count():
+        count_regex = sum(c for _, c in pyfastgrep.count("fn", source_root, "*.rs"))
+        count_literal = sum(c for _, c in pyfastgrep.count("fn", source_root, "*.rs", fixed_strings=True))
+        assert count_regex == count_literal, "Literal word should match identically under regex and fixed-strings"
+
+    def test_cli_fixed_strings():
+        cli_regex = subprocess.run(
+            ["cargo", "run", "-p", "pyfastgrep-cli", "--", ".", "src", "--glob", "*.rs", "--fixed-strings"],
+            cwd=str(REPO_ROOT), capture_output=True, text=True,
+        )
+        assert cli_regex.returncode == 0, f"CLI fixed-strings exited with {cli_regex.returncode}: {cli_regex.stderr}"
+        lines = cli_regex.stdout.strip().splitlines()
+        # Literal dot should find far fewer matches than regex dot
+        assert len(lines) < 300, f"Fixed strings should match fewer than 300 lines, got {len(lines)}"
+
     def test_cli_ast_functions():
         cli_result = subprocess.run(
             [
@@ -293,6 +313,9 @@ def main():
         ("CLI --count works", test_cli_count),
         ("CLI --files-with-matches works", test_cli_files_with_matches),
         ("CLI --count with --json works", test_cli_count_json),
+        ("Fixed strings matches fewer than regex", test_fixed_strings_vs_regex),
+        ("Fixed strings count matches regex for literal", test_fixed_strings_count),
+        ("CLI --fixed-strings works", test_cli_fixed_strings),
         ("Ergonomic aliases work", test_ergonomic_aliases),
         ("AST function search finds matches", test_ast_functions),
         ("AST class search finds matches", test_ast_classes),

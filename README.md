@@ -79,6 +79,10 @@ pyfastgrep fn src --glob "*.rs" --ignore-case --count --json
 
 # Only show filenames with matches
 pyfastgrep fn src --glob "*.rs" --ignore-case --files-with-matches
+
+# Fixed-strings: treat pattern as literal text
+pyfastgrep "." src --glob "*.rs" --fixed-strings
+pyfastgrep "fn" src --glob "*.rs" --fixed-strings --count
 ```
 
 You can also run it directly from the workspace while developing:

@@ -19,6 +19,7 @@ fn build_config(
     glob: Option<String>,
     max_results: Option<usize>,
     ignore_case: Option<bool>,
+    fixed_strings: Option<bool>,
 ) -> SearchConfig {
     SearchConfig {
         pattern,
@@ -26,6 +27,7 @@ fn build_config(
         glob,
         max_results,
         ignore_case: ignore_case.unwrap_or(false),
+        fixed_strings: fixed_strings.unwrap_or(false),
     }
 }
 
@@ -94,7 +96,7 @@ fn write_csv_file(output_path: &str, csv_content: &str) -> Result<(), String> {
 // ---------------------------------------------------------------------------
 
 #[pyfunction]
-#[pyo3(signature = (pattern, root, glob=None, max_results=None, ignore_case=None, json=None, csv=None, output_path=None))]
+#[pyo3(signature = (pattern, root, glob=None, max_results=None, ignore_case=None, json=None, csv=None, output_path=None, fixed_strings=None))]
 fn search(
     pattern: String,
     root: String,
@@ -104,8 +106,9 @@ fn search(
     json: Option<bool>,
     csv: Option<bool>,
     output_path: Option<String>,
+    fixed_strings: Option<bool>,
 ) -> PyResult<Py<PyAny>> {
-    let config = build_config(pattern, root, glob, max_results, ignore_case);
+    let config = build_config(pattern, root, glob, max_results, ignore_case, fixed_strings);
     let return_json = json.unwrap_or(false);
     let return_csv = csv.unwrap_or(false);
 
@@ -188,7 +191,7 @@ impl PyResultIterator {
 }
 
 #[pyfunction]
-#[pyo3(signature = (pattern, root, glob=None, ignore_case=None, json=None, csv=None, output_path=None))]
+#[pyo3(signature = (pattern, root, glob=None, ignore_case=None, json=None, csv=None, output_path=None, fixed_strings=None))]
 fn search_iter(
     pattern: String,
     root: String,
@@ -197,8 +200,9 @@ fn search_iter(
     json: Option<bool>,
     csv: Option<bool>,
     output_path: Option<String>,
+    fixed_strings: Option<bool>,
 ) -> PyResult<PyResultIterator> {
-    let config = build_config(pattern, root, glob, None, ignore_case);
+    let config = build_config(pattern, root, glob, None, ignore_case, fixed_strings);
     let receiver = core_search_stream(config).map_err(PyValueError::new_err)?;
 
     let return_json = json.unwrap_or(false);
@@ -230,26 +234,28 @@ fn search_iter(
 }
 
 #[pyfunction]
-#[pyo3(signature = (pattern, root, glob=None, ignore_case=None))]
+#[pyo3(signature = (pattern, root, glob=None, ignore_case=None, fixed_strings=None))]
 fn search_count(
     pattern: String,
     root: String,
     glob: Option<String>,
     ignore_case: Option<bool>,
+    fixed_strings: Option<bool>,
 ) -> PyResult<Vec<(String, usize)>> {
-    let config = build_config(pattern, root, glob, None, ignore_case);
+    let config = build_config(pattern, root, glob, None, ignore_case, fixed_strings);
     core_search_count(&config).map_err(PyValueError::new_err)
 }
 
 #[pyfunction]
-#[pyo3(signature = (pattern, root, glob=None, ignore_case=None))]
+#[pyo3(signature = (pattern, root, glob=None, ignore_case=None, fixed_strings=None))]
 fn search_files_with_matches(
     pattern: String,
     root: String,
     glob: Option<String>,
     ignore_case: Option<bool>,
+    fixed_strings: Option<bool>,
 ) -> PyResult<Vec<String>> {
-    let config = build_config(pattern, root, glob, None, ignore_case);
+    let config = build_config(pattern, root, glob, None, ignore_case, fixed_strings);
     core_search_files_with_matches(&config).map_err(PyValueError::new_err)
 }
 

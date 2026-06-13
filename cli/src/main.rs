@@ -66,6 +66,7 @@ fn main() {
     let mut output_path: Option<String> = None;
     let mut count = false;
     let mut files_with_matches = false;
+    let mut fixed_strings = false;
     let mut ast_mode: Option<AstQueryType> = None;
 
     let mut i = 0;
@@ -117,6 +118,9 @@ fn main() {
             }
             "-l" | "--files-with-matches" => {
                 files_with_matches = true;
+            }
+            "-F" | "--fixed-strings" => {
+                fixed_strings = true;
             }
             "--functions" => {
                 ast_mode = Some(AstQueryType::Function);
@@ -195,6 +199,7 @@ fn main() {
         let mut config = SearchConfig::new(pattern, root);
         config.glob = glob;
         config.ignore_case = ignore_case;
+        config.fixed_strings = fixed_strings;
 
         if count {
             match search_count(&config) {
@@ -296,6 +301,7 @@ fn main() {
         config.glob = glob;
         config.max_results = max_results;
         config.ignore_case = ignore_case;
+        config.fixed_strings = fixed_strings;
 
         match search(&config) {
             Ok(results) => {
@@ -326,6 +332,6 @@ fn main() {
 
 fn print_usage() {
     eprintln!(
-        "Usage: pyfastgrep <pattern> [root] [--glob <pattern>] [--limit <n>] [--ignore-case] [--json] [--csv] [--output <file>] [--root <path>] [--count] [--files-with-matches] [--functions] [--classes] [--imports]"
+        "Usage: pyfastgrep <pattern> [root] [--glob <pattern>] [--limit <n>] [--ignore-case] [--fixed-strings] [--json] [--csv] [--output <file>] [--root <path>] [--count] [--files-with-matches] [--functions] [--classes] [--imports]"
     );
 }
