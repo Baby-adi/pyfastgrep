@@ -15,7 +15,11 @@ pub fn build_glob(glob: &Option<String>) -> Result<Option<GlobSet>, String> {
 }
 
 /// Build a regex matcher from a pattern string.
-pub fn build_matcher(pattern: &str, ignore_case: bool, fixed_strings: bool) -> Result<RegexMatcher, String> {
+pub fn build_matcher(
+    pattern: &str,
+    ignore_case: bool,
+    fixed_strings: bool,
+) -> Result<RegexMatcher, String> {
     RegexMatcherBuilder::new()
         .case_insensitive(ignore_case)
         .fixed_strings(fixed_strings)

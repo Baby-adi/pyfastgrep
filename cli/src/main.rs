@@ -1,7 +1,6 @@
 use pyfastgrep_core::{
-    search, search_count, search_files_with_matches, search_with_context,
-    search_ast, AstQueryType, SearchConfig, SearchHit,
-    ContextConfig,
+    search, search_ast, search_count, search_files_with_matches, search_with_context, AstQueryType,
+    ContextConfig, SearchConfig, SearchHit,
 };
 use std::env;
 use std::fs::File;
@@ -45,13 +44,20 @@ fn count_results_to_csv(results: &[(String, usize)]) -> String {
 
 fn write_csv_file(path: &str, csv_content: &str) -> Result<(), String> {
     let mut file = File::create(path).map_err(|e| e.to_string())?;
-    file.write_all(csv_content.as_bytes()).map_err(|e| e.to_string())?;
+    file.write_all(csv_content.as_bytes())
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
 fn print_regular_hit(hit: &SearchHit) {
     if let Some(offset) = hit.byte_offset {
-        println!("{}:{}:{}: {}", hit.file, offset, hit.line, hit.content.trim_end());
+        println!(
+            "{}:{}:{}: {}",
+            hit.file,
+            offset,
+            hit.line,
+            hit.content.trim_end()
+        );
     } else {
         println!("{}:{}: {}", hit.file, hit.line, hit.content.trim_end());
     }
@@ -223,7 +229,10 @@ fn main() {
         .map(|(name, _)| *name)
         .collect();
     if active_formats.len() > 1 {
-        eprintln!("Error: {} are mutually exclusive", active_formats.join(", "));
+        eprintln!(
+            "Error: {} are mutually exclusive",
+            active_formats.join(", ")
+        );
         std::process::exit(1);
     }
 
@@ -248,7 +257,9 @@ fn main() {
     }
 
     if has_context && (count || files_with_matches || ast_mode.is_some()) {
-        eprintln!("Error: --context is not supported with --count, --files-with-matches, or AST search");
+        eprintln!(
+            "Error: --context is not supported with --count, --files-with-matches, or AST search"
+        );
         std::process::exit(1);
     }
 
@@ -327,7 +338,12 @@ fn main() {
             Ok(results) => {
                 let hits: Vec<SearchHit> = results
                     .into_iter()
-                    .map(|(file, line, content)| SearchHit { file, line, byte_offset: None, content })
+                    .map(|(file, line, content)| SearchHit {
+                        file,
+                        line,
+                        byte_offset: None,
+                        content,
+                    })
                     .collect();
 
                 if json {

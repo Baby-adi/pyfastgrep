@@ -42,7 +42,9 @@ impl TargetLanguage {
             Self::Python => "(function_definition name: (identifier) @name)",
             Self::Go => "(function_declaration name: (identifier) @name)",
             Self::C | Self::Cpp => "(function_declarator declarator: (identifier) @name)",
-            Self::Javascript | Self::Typescript => "(function_declaration name: (identifier) @name)",
+            Self::Javascript | Self::Typescript => {
+                "(function_declaration name: (identifier) @name)"
+            }
         }
     }
 

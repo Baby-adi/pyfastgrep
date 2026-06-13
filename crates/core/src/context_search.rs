@@ -1,6 +1,6 @@
 use crate::{utils::*, SearchConfig};
 use grep::regex::RegexMatcher;
-use grep::searcher::{SearcherBuilder, Sink, SinkMatch, SinkContext};
+use grep::searcher::{SearcherBuilder, Sink, SinkContext, SinkMatch};
 use rayon::prelude::*;
 use serde::Serialize;
 use std::io;
@@ -33,7 +33,11 @@ pub struct ContextConfig {
 
 /// Search with context lines (-A, -B, -C equivalent).
 pub fn search_with_context(config: &ContextConfig) -> Result<Vec<SearchHitWithContext>, String> {
-    let matcher = build_matcher(&config.base.pattern, config.base.ignore_case, config.base.fixed_strings)?;
+    let matcher = build_matcher(
+        &config.base.pattern,
+        config.base.ignore_case,
+        config.base.fixed_strings,
+    )?;
     let glob_matcher = build_glob(&config.base.glob)?;
     let paths = collect_paths(&config.base.root, &glob_matcher);
 
@@ -110,10 +114,13 @@ impl ContextSink {
                     if self.lines[j].is_match {
                         break;
                     }
-                    before.insert(0, ContextLine {
-                        line: self.lines[j].line_number,
-                        content: self.lines[j].content.clone(),
-                    });
+                    before.insert(
+                        0,
+                        ContextLine {
+                            line: self.lines[j].line_number,
+                            content: self.lines[j].content.clone(),
+                        },
+                    );
                 }
 
                 // Collect at most after_n context lines after this match
@@ -177,10 +184,7 @@ impl Sink for ContextSink {
         Ok(true)
     }
 
-    fn context_break(
-        &mut self,
-        _searcher: &grep::searcher::Searcher,
-    ) -> Result<bool, Self::Error> {
+    fn context_break(&mut self, _searcher: &grep::searcher::Searcher) -> Result<bool, Self::Error> {
         Ok(true)
     }
 }

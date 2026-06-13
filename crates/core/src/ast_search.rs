@@ -1,12 +1,12 @@
-use crate::utils::*;
 use crate::ast::TargetLanguage;
+use crate::utils::*;
+use crossbeam_channel::{bounded, Receiver};
+use ignore::WalkBuilder;
 use rayon::prelude::*;
 use std::fs;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use crossbeam_channel::{bounded, Receiver};
-use ignore::WalkBuilder;
 use tree_sitter::{Parser, Query, QueryCursor};
 
 /// Type of AST query to perform.
@@ -50,7 +50,8 @@ pub fn search_ast(
 
                     if let Ok(query) = Query::new(ts_lang, query_str) {
                         let mut cursor = QueryCursor::new();
-                        let matches = cursor.matches(&query, tree.root_node(), source_code.as_bytes());
+                        let matches =
+                            cursor.matches(&query, tree.root_node(), source_code.as_bytes());
 
                         for m in matches {
                             for capture in m.captures {
@@ -64,9 +65,14 @@ pub fn search_ast(
 
                                 if is_match {
                                     let start_pos = node.start_position();
-                                    let line = source_code.lines().nth(start_pos.row).unwrap_or("").to_string();
+                                    let line = source_code
+                                        .lines()
+                                        .nth(start_pos.row)
+                                        .unwrap_or("")
+                                        .to_string();
                                     let mut res = results.lock().unwrap();
-                                    let item = (path.display().to_string(), start_pos.row + 1, line);
+                                    let item =
+                                        (path.display().to_string(), start_pos.row + 1, line);
                                     if !res.contains(&item) {
                                         res.push(item);
                                     }
@@ -79,10 +85,7 @@ pub fn search_ast(
         }
     });
 
-    let final_results = Arc::try_unwrap(results)
-        .unwrap()
-        .into_inner()
-        .unwrap();
+    let final_results = Arc::try_unwrap(results).unwrap().into_inner().unwrap();
 
     Ok(final_results)
 }
@@ -98,9 +101,7 @@ pub fn search_ast_stream(
     let (tx, rx) = bounded(1000);
 
     thread::spawn(move || {
-        let walker = WalkBuilder::new(&root)
-            .standard_filters(true)
-            .build();
+        let walker = WalkBuilder::new(&root).standard_filters(true).build();
 
         for entry in walker {
             let entry = match entry {
@@ -136,7 +137,8 @@ pub fn search_ast_stream(
 
                         if let Ok(query) = Query::new(ts_lang, query_str) {
                             let mut cursor = QueryCursor::new();
-                            let matches = cursor.matches(&query, tree.root_node(), source_code.as_bytes());
+                            let matches =
+                                cursor.matches(&query, tree.root_node(), source_code.as_bytes());
 
                             for m in matches {
                                 for capture in m.captures {
@@ -150,8 +152,19 @@ pub fn search_ast_stream(
 
                                     if is_match {
                                         let start_pos = node.start_position();
-                                        let line = source_code.lines().nth(start_pos.row).unwrap_or("").to_string();
-                                        if tx.send((path.display().to_string(), start_pos.row + 1, line)).is_err() {
+                                        let line = source_code
+                                            .lines()
+                                            .nth(start_pos.row)
+                                            .unwrap_or("")
+                                            .to_string();
+                                        if tx
+                                            .send((
+                                                path.display().to_string(),
+                                                start_pos.row + 1,
+                                                line,
+                                            ))
+                                            .is_err()
+                                        {
                                             return;
                                         }
                                     }

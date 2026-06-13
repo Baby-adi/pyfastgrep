@@ -1,9 +1,6 @@
-use pyo3::prelude::*;
-use pyfastgrep_core::{
-    SearchConfig, SearchHit,
-};
 use crate::utils::*;
-use serde_json::{json, Value};
+use pyfastgrep_core::{SearchConfig, SearchHit};
+use pyo3::prelude::*;
 use std::path::PathBuf;
 
 pub fn build_config(

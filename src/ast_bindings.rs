@@ -1,9 +1,6 @@
-use pyo3::prelude::*;
+use pyfastgrep_core::{search_ast, search_ast_stream, AstQueryType, AstResultReceiver};
 use pyo3::exceptions::PyValueError;
-use pyfastgrep_core::{
-    search_ast, search_ast_stream,
-    AstQueryType, AstResultReceiver,
-};
+use pyo3::prelude::*;
 use std::path::PathBuf;
 
 #[pyclass]
@@ -19,9 +16,7 @@ impl PyAstResultIterator {
 
     fn __next__(slf: PyRefMut<'_, Self>) -> Option<Py<PyAny>> {
         let item = slf.receiver.recv().ok()?;
-        Python::attach(|py| {
-            Some(item.into_pyobject(py).ok()?.into_any().unbind())
-        })
+        Python::attach(|py| Some(item.into_pyobject(py).ok()?.into_any().unbind()))
     }
 }
 
@@ -32,8 +27,13 @@ pub fn search_functions(
     root: String,
     glob: Option<String>,
 ) -> PyResult<Vec<(String, usize, String)>> {
-    search_ast(&target_name, &PathBuf::from(&root), &glob, AstQueryType::Function)
-        .map_err(PyValueError::new_err)
+    search_ast(
+        &target_name,
+        &PathBuf::from(&root),
+        &glob,
+        AstQueryType::Function,
+    )
+    .map_err(PyValueError::new_err)
 }
 
 #[pyfunction]
@@ -43,8 +43,13 @@ pub fn search_classes(
     root: String,
     glob: Option<String>,
 ) -> PyResult<Vec<(String, usize, String)>> {
-    search_ast(&target_name, &PathBuf::from(&root), &glob, AstQueryType::Class)
-        .map_err(PyValueError::new_err)
+    search_ast(
+        &target_name,
+        &PathBuf::from(&root),
+        &glob,
+        AstQueryType::Class,
+    )
+    .map_err(PyValueError::new_err)
 }
 
 #[pyfunction]
@@ -54,8 +59,13 @@ pub fn search_imports(
     root: String,
     glob: Option<String>,
 ) -> PyResult<Vec<(String, usize, String)>> {
-    search_ast(&target_name, &PathBuf::from(&root), &glob, AstQueryType::Import)
-        .map_err(PyValueError::new_err)
+    search_ast(
+        &target_name,
+        &PathBuf::from(&root),
+        &glob,
+        AstQueryType::Import,
+    )
+    .map_err(PyValueError::new_err)
 }
 
 #[pyfunction]

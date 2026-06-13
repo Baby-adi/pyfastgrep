@@ -1,14 +1,12 @@
-use pyo3::prelude::*;
-use pyo3::exceptions::PyValueError;
-use pyfastgrep_core::{
-    search as core_search,
-    search_stream as core_search_stream,
-    search_count as core_search_count,
-    search_files_with_matches as core_search_files_with_matches,
-    SearchReceiver,
-};
 use crate::common::*;
 use crate::utils::*;
+use pyfastgrep_core::{
+    search as core_search, search_count as core_search_count,
+    search_files_with_matches as core_search_files_with_matches,
+    search_stream as core_search_stream, SearchReceiver,
+};
+use pyo3::exceptions::PyValueError;
+use pyo3::prelude::*;
 use std::fs::File;
 use std::io::Write;
 
@@ -34,7 +32,13 @@ impl PyResultIterator {
                 let _ = writer.write_all(b"file,line,content\n");
             }
             return Python::attach(|py| {
-                Some("file,line,content\n".into_pyobject(py).ok()?.into_any().unbind())
+                Some(
+                    "file,line,content\n"
+                        .into_pyobject(py)
+                        .ok()?
+                        .into_any()
+                        .unbind(),
+                )
             });
         }
 
@@ -46,7 +50,9 @@ impl PyResultIterator {
                 hit_clone.content = hit_clone.content.trim_end().to_string();
                 let json_string = serde_json::to_string(&hit_clone).unwrap();
                 let json_module = py.import("json").ok()?;
-                let parsed = json_module.call_method("loads", (json_string,), None).ok()?;
+                let parsed = json_module
+                    .call_method("loads", (json_string,), None)
+                    .ok()?;
                 Some(parsed.into())
             } else if slf.csv_mode {
                 let row = hit_to_csv_row(&hit.file, hit.line, &hit.content);
@@ -55,12 +61,19 @@ impl PyResultIterator {
                 }
                 Some(row.into_pyobject(py).ok()?.into_any().unbind())
             } else {
-                Some((hit.file, hit.line, hit.content).into_pyobject(py).ok()?.into_any().unbind())
+                Some(
+                    (hit.file, hit.line, hit.content)
+                        .into_pyobject(py)
+                        .ok()?
+                        .into_any()
+                        .unbind(),
+                )
             }
         })
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 #[pyfunction]
 #[pyo3(signature = (pattern, root, glob=None, max_results=None, ignore_case=None, json=None, csv=None, output_path=None, fixed_strings=None, byte_offset=None))]
 pub fn search(
@@ -75,16 +88,28 @@ pub fn search(
     fixed_strings: Option<bool>,
     byte_offset: Option<bool>,
 ) -> PyResult<Py<PyAny>> {
-    let config = build_config(pattern, root, glob, max_results, ignore_case, fixed_strings, byte_offset);
+    let config = build_config(
+        pattern,
+        root,
+        glob,
+        max_results,
+        ignore_case,
+        fixed_strings,
+        byte_offset,
+    );
     let return_json = json.unwrap_or(false);
     let return_csv = csv.unwrap_or(false);
 
     if return_json && return_csv {
-        return Err(PyValueError::new_err("json and csv output modes are mutually exclusive"));
+        return Err(PyValueError::new_err(
+            "json and csv output modes are mutually exclusive",
+        ));
     }
 
     if output_path.is_some() && !return_csv {
-        return Err(PyValueError::new_err("output_path is only supported with csv output"));
+        return Err(PyValueError::new_err(
+            "output_path is only supported with csv output",
+        ));
     }
 
     let hits = core_search(&config).map_err(PyValueError::new_err)?;
@@ -105,6 +130,7 @@ pub fn search(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 #[pyfunction]
 #[pyo3(signature = (pattern, root, glob=None, ignore_case=None, json=None, csv=None, output_path=None, fixed_strings=None, byte_offset=None))]
 pub fn search_iter(
@@ -118,6 +144,7 @@ pub fn search_iter(
     fixed_strings: Option<bool>,
     byte_offset: Option<bool>,
 ) -> PyResult<PyResultIterator> {
+    let _ = byte_offset; // Not used for streaming search yet
     let config = build_config(pattern, root, glob, None, ignore_case, fixed_strings, None);
     let receiver = core_search_stream(config).map_err(PyValueError::new_err)?;
 
@@ -125,16 +152,21 @@ pub fn search_iter(
     let return_csv = csv.unwrap_or(false);
 
     if return_json && return_csv {
-        return Err(PyValueError::new_err("json and csv output modes are mutually exclusive"));
+        return Err(PyValueError::new_err(
+            "json and csv output modes are mutually exclusive",
+        ));
     }
 
     if output_path.is_some() && !return_csv {
-        return Err(PyValueError::new_err("output_path is only supported with csv output"));
+        return Err(PyValueError::new_err(
+            "output_path is only supported with csv output",
+        ));
     }
 
     let csv_writer = if let Some(path) = output_path.as_deref() {
         let mut file = File::create(path).map_err(PyValueError::new_err)?;
-        file.write_all(b"file,line,content\n").map_err(PyValueError::new_err)?;
+        file.write_all(b"file,line,content\n")
+            .map_err(PyValueError::new_err)?;
         Some(file)
     } else {
         None

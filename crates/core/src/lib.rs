@@ -1,12 +1,12 @@
 use serde::Serialize;
 use std::path::PathBuf;
 
+pub mod ast;
 pub mod ast_search;
 pub mod context_search;
 pub mod regex_search;
 pub mod regex_stream;
 pub mod utils;
-pub mod ast;
 
 /// Configuration for a search operation.
 #[derive(Clone, Debug)]
