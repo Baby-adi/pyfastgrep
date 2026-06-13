@@ -31,7 +31,9 @@ jobs:
       if: matrix.target == 'x86_64'
       run: |
         pip install pyfastgrep --no-index --find-links dist --force-reinstall
-        python tests/mandatory_tests.py
+        cp tests/mandatory_tests.py /tmp/test_wheel.py
+        cd /tmp
+        python test_wheel.py
     - name: Upload wheels
       uses: actions/upload-artifact@v4
       with:
@@ -59,7 +61,10 @@ jobs:
       if: matrix.target == 'x64'
       run: |
         pip install pyfastgrep --no-index --find-links dist --force-reinstall
-        python tests/mandatory_tests.py
+        copy tests\mandatory_tests.py %TEMP%\test_wheel.py
+        cd %TEMP%
+        python test_wheel.py
+      shell: cmd
     - name: Upload wheels
       uses: actions/upload-artifact@v4
       with:
@@ -82,7 +87,9 @@ jobs:
     - name: Test wheel
       run: |
         pip install pyfastgrep --no-index --find-links dist --force-reinstall
-        python tests/mandatory_tests.py
+        cp tests/mandatory_tests.py /tmp/test_wheel.py
+        cd /tmp
+        python test_wheel.py
     - name: Upload wheels
       uses: actions/upload-artifact@v4
       with:
@@ -105,7 +112,9 @@ jobs:
     - name: Test wheel
       run: |
         pip install pyfastgrep --no-index --find-links dist --force-reinstall
-        python tests/mandatory_tests.py
+        cp tests/mandatory_tests.py /tmp/test_wheel.py
+        cd /tmp
+        python test_wheel.py
     - name: Upload wheels
       uses: actions/upload-artifact@v4
       with:

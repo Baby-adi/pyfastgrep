@@ -6,9 +6,11 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-sys.path.insert(0, str(REPO_ROOT))
-
-import pyfastgrep  # noqa: E402
+try:
+    import pyfastgrep
+except ImportError:
+    sys.path.insert(0, str(REPO_ROOT))
+    import pyfastgrep  # noqa: E402
 
 
 def run_test(name, func):
