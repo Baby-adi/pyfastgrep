@@ -332,9 +332,43 @@ def main():
             text=True,
         )
         assert cli_result.returncode == 0, f"CLI context exited with {cli_result.returncode}: {cli_result.stderr}"
-        # Should have context lines with '-' prefix and matches with ':'
         assert "-" in cli_result.stdout, "CLI context should have context lines"
         assert ":" in cli_result.stdout, "CLI context should have match lines"
+
+    def test_byte_offset_json():
+        results = pyfastgrep.search("fn", source_root, "*.rs", json=True, byte_offset=True)
+        assert len(results) > 0, "Byte offset search should find matches"
+        assert "byte_offset" in results[0], "JSON should include byte_offset key"
+        assert isinstance(results[0]["byte_offset"], int), "byte_offset should be an integer"
+
+    def test_byte_offset_json_absent_when_disabled():
+        results = pyfastgrep.search("fn", source_root, "*.rs", json=True, byte_offset=False)
+        assert "byte_offset" not in results[0], "byte_offset should not appear when disabled"
+
+    def test_cli_byte_offset():
+        cli_result = subprocess.run(
+            [
+                "cargo",
+                "run",
+                "-p",
+                "pyfastgrep-cli",
+                "--",
+                "fn",
+                "src",
+                "--glob",
+                "*.rs",
+                "--byte-offset",
+            ],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+        )
+        assert cli_result.returncode == 0, f"CLI byte-offset exited with {cli_result.returncode}: {cli_result.stderr}"
+        # Output format: file:byte_offset:line:content
+        lines = cli_result.stdout.strip().splitlines()
+        assert len(lines) > 0, "Should have output"
+        first_parts = lines[0].split(":")
+        assert len(first_parts) >= 4, f"Format should be file:byte:line:content, got {lines[0]}"
 
     tests = [
         ("Case-sensitive search returns no matches", test_case_sensitive_search),
@@ -357,6 +391,9 @@ def main():
         ("Context search returns correct structure", test_context_search),
         ("Context search zero context works", test_context_search_zero),
         ("CLI --context works", test_cli_context),
+        ("Byte offset in JSON when enabled", test_byte_offset_json),
+        ("Byte offset absent in JSON when disabled", test_byte_offset_json_absent_when_disabled),
+        ("CLI --byte-offset works", test_cli_byte_offset),
         ("Ergonomic aliases work", test_ergonomic_aliases),
         ("AST function search finds matches", test_ast_functions),
         ("AST class search finds matches", test_ast_classes),

@@ -50,7 +50,11 @@ fn write_csv_file(path: &str, csv_content: &str) -> Result<(), String> {
 }
 
 fn print_regular_hit(hit: &SearchHit) {
-    println!("{}:{}: {}", hit.file, hit.line, hit.content.trim_end());
+    if let Some(offset) = hit.byte_offset {
+        println!("{}:{}:{}: {}", hit.file, offset, hit.line, hit.content.trim_end());
+    } else {
+        println!("{}:{}: {}", hit.file, hit.line, hit.content.trim_end());
+    }
 }
 
 macro_rules! print_json {
@@ -84,6 +88,7 @@ fn main() {
     let mut count = false;
     let mut files_with_matches = false;
     let mut fixed_strings = false;
+    let mut byte_offset = false;
     let mut before_context: Option<usize> = None;
     let mut after_context: Option<usize> = None;
     let mut context: Option<usize> = None;
@@ -141,6 +146,9 @@ fn main() {
             }
             "-F" | "--fixed-strings" => {
                 fixed_strings = true;
+            }
+            "-b" | "--byte-offset" => {
+                byte_offset = true;
             }
             "-A" | "--after-context" => {
                 i += 1;
@@ -319,7 +327,7 @@ fn main() {
             Ok(results) => {
                 let hits: Vec<SearchHit> = results
                     .into_iter()
-                    .map(|(file, line, content)| SearchHit { file, line, content })
+                    .map(|(file, line, content)| SearchHit { file, line, byte_offset: None, content })
                     .collect();
 
                 if json {
@@ -395,6 +403,7 @@ fn main() {
         config.max_results = max_results;
         config.ignore_case = ignore_case;
         config.fixed_strings = fixed_strings;
+        config.byte_offset = byte_offset;
 
         match search(&config) {
             Ok(results) => {
@@ -425,6 +434,6 @@ fn main() {
 
 fn print_usage() {
     eprintln!(
-        "Usage: pyfastgrep <pattern> [root] [--glob <pattern>] [--limit <n>] [--ignore-case] [--fixed-strings] [--json] [--csv] [--output <file>] [--root <path>] [--count] [--files-with-matches] [--context <n>] [--before-context <n>] [--after-context <n>] [--functions] [--classes] [--imports]"
+        "Usage: pyfastgrep <pattern> [root] [--glob <pattern>] [--limit <n>] [--ignore-case] [--fixed-strings] [--byte-offset] [--json] [--csv] [--output <file>] [--root <path>] [--count] [--files-with-matches] [--context <n>] [--before-context <n>] [--after-context <n>] [--functions] [--classes] [--imports]"
     );
 }

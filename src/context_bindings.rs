@@ -18,7 +18,7 @@ pub fn search_with_context(
     fixed_strings: Option<bool>,
 ) -> PyResult<Vec<(String, usize, String, Vec<String>, Vec<String>)>> {
     let config = ContextConfig {
-        base: build_config(pattern, root, glob, None, ignore_case, fixed_strings),
+        base: build_config(pattern, root, glob, None, ignore_case, fixed_strings, None),
         before_context,
         after_context,
     };

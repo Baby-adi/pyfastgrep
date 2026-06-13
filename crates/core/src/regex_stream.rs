@@ -47,6 +47,7 @@ pub fn search_stream(config: SearchConfig) -> Result<SearchReceiver, String> {
                         .send(SearchHit {
                             file: path.display().to_string(),
                             line: lnum as usize,
+                            byte_offset: None,
                             content: line.to_string(),
                         })
                         .is_err()

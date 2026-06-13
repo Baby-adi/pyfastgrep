@@ -17,6 +17,7 @@ pub struct SearchConfig {
     pub max_results: Option<usize>,
     pub ignore_case: bool,
     pub fixed_strings: bool,
+    pub byte_offset: bool,
 }
 
 impl SearchConfig {
@@ -28,6 +29,7 @@ impl SearchConfig {
             max_results: None,
             ignore_case: false,
             fixed_strings: false,
+            byte_offset: false,
         }
     }
 }
@@ -37,6 +39,8 @@ impl SearchConfig {
 pub struct SearchHit {
     pub file: String,
     pub line: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub byte_offset: Option<u64>,
     pub content: String,
 }
 

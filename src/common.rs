@@ -13,6 +13,7 @@ pub fn build_config(
     max_results: Option<usize>,
     ignore_case: Option<bool>,
     fixed_strings: Option<bool>,
+    byte_offset: Option<bool>,
 ) -> SearchConfig {
     SearchConfig {
         pattern,
@@ -21,22 +22,17 @@ pub fn build_config(
         max_results,
         ignore_case: ignore_case.unwrap_or(false),
         fixed_strings: fixed_strings.unwrap_or(false),
+        byte_offset: byte_offset.unwrap_or(false),
     }
 }
 
-pub fn hits_to_json(py: Python<'_>, hits: Vec<SearchHit>) -> PyResult<Py<PyAny>> {
-    let json_results: Vec<Value> = hits
-        .into_iter()
-        .map(|hit| {
-            json!({
-                "file": hit.file,
-                "line": hit.line,
-                "content": hit.content.trim_end()
-            })
-        })
-        .collect();
+pub fn hits_to_json(py: Python<'_>, mut hits: Vec<SearchHit>) -> PyResult<Py<PyAny>> {
+    // Trim trailing whitespace from content before serialization
+    for hit in &mut hits {
+        hit.content = hit.content.trim_end().to_string();
+    }
 
-    let json_string = serde_json::to_string(&json_results).unwrap();
+    let json_string = serde_json::to_string(&hits).unwrap();
     let json_module = py.import("json")?;
     let parsed = json_module.call_method("loads", (json_string,), None)?;
     Ok(parsed.into())

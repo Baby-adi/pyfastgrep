@@ -10,7 +10,7 @@ from .pyfastgrep import search_functions_iter as _search_functions_iter
 from .pyfastgrep import search_classes_iter as _search_classes_iter
 from .pyfastgrep import search_imports_iter as _search_imports_iter
 
-def _normalize_search_options(path, glob, max_results, ignore_case, fixed_strings, json, csv, output_path, kwargs):
+def _normalize_search_options(path, glob, max_results, ignore_case, fixed_strings, byte_offset, json, csv, output_path, kwargs):
     if "root" in kwargs:
         path = kwargs.pop("root")
     if "limit" in kwargs:
@@ -19,6 +19,8 @@ def _normalize_search_options(path, glob, max_results, ignore_case, fixed_string
         ignore_case = kwargs.pop("case_insensitive")
     if "fixed_strings" in kwargs:
         fixed_strings = kwargs.pop("fixed_strings")
+    if "byte_offset" in kwargs:
+        byte_offset = kwargs.pop("byte_offset")
     if "as_json" in kwargs:
         json = kwargs.pop("as_json")
     if "as_csv" in kwargs:
@@ -34,10 +36,10 @@ def _normalize_search_options(path, glob, max_results, ignore_case, fixed_string
         unexpected = ", ".join(sorted(kwargs.keys()))
         raise TypeError(f"unexpected keyword argument(s): {unexpected}")
 
-    return path, glob, max_results, ignore_case, fixed_strings, json, csv_output, output_path
+    return path, glob, max_results, ignore_case, fixed_strings, byte_offset, json, csv_output, output_path
 
 
-def search(pattern, path=".", glob=None, max_results=None, ignore_case=False, json=False, csv=False, output_path=None, fixed_strings=False, **kwargs):
+def search(pattern, path=".", glob=None, max_results=None, ignore_case=False, json=False, csv=False, output_path=None, fixed_strings=False, byte_offset=False, **kwargs):
     """
     Search for a pattern in files.
 
@@ -49,16 +51,17 @@ def search(pattern, path=".", glob=None, max_results=None, ignore_case=False, js
         ignore_case: Case insensitive search (default: False)
         json: Return results as JSON objects (default: False)
         fixed_strings: Treat pattern as literal string (default: False)
+        byte_offset: Include byte offset in results (default: False)
 
     Returns:
         List of tuples (file, line, content) or JSON objects if json=True
     """
-    path, glob, max_results, ignore_case, fixed_strings, json, csv, output_path = _normalize_search_options(
-        path, glob, max_results, ignore_case, fixed_strings, json, csv, output_path, kwargs
+    path, glob, max_results, ignore_case, fixed_strings, byte_offset, json, csv, output_path = _normalize_search_options(
+        path, glob, max_results, ignore_case, fixed_strings, byte_offset, json, csv, output_path, kwargs
     )
-    return _search(pattern, path, glob, max_results, ignore_case, json, csv, output_path, fixed_strings)
+    return _search(pattern, path, glob, max_results, ignore_case, json, csv, output_path, fixed_strings, byte_offset)
 
-def search_iter(pattern, path=".", glob=None, ignore_case=False, json=False, csv=False, output_path=None, fixed_strings=False, **kwargs):
+def search_iter(pattern, path=".", glob=None, ignore_case=False, json=False, csv=False, output_path=None, fixed_strings=False, byte_offset=False, **kwargs):
     """
     Streaming iterator search for a pattern in files.
 
@@ -69,14 +72,15 @@ def search_iter(pattern, path=".", glob=None, ignore_case=False, json=False, csv
         ignore_case: Case insensitive search (default: False)
         json: Return results as JSON objects (default: False)
         fixed_strings: Treat pattern as literal string (default: False)
+        byte_offset: Include byte offset in results (default: False)
 
     Returns:
         Iterator yielding tuples (file, line, content) or JSON objects if json=True
     """
-    path, glob, _, ignore_case, fixed_strings, json, csv, output_path = _normalize_search_options(
-        path, glob, None, ignore_case, fixed_strings, json, csv, output_path, kwargs
+    path, glob, _, ignore_case, fixed_strings, byte_offset, json, csv, output_path = _normalize_search_options(
+        path, glob, None, ignore_case, fixed_strings, byte_offset, json, csv, output_path, kwargs
     )
-    return _search_iter(pattern, path, glob, ignore_case, json, csv, output_path, fixed_strings)
+    return _search_iter(pattern, path, glob, ignore_case, json, csv, output_path, fixed_strings, byte_offset)
 
 def count(pattern, path=".", glob=None, ignore_case=False, fixed_strings=False, **kwargs):
     """
