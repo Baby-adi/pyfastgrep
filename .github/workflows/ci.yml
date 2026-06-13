@@ -40,12 +40,17 @@ jobs:
         pip install maturin
 
     - name: Build and install extension
+      shell: bash
       run: |
-        maturin build --release
-        pip install target/wheels/*.whl
-
-    - name: Run test suite
-      run: python tests/mandatory_tests.py
+        python -m venv .venv
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+          source .venv/Scripts/activate
+        else
+          source .venv/bin/activate
+        fi
+        pip install maturin
+        maturin develop --release
+        python tests/mandatory_tests.py
 
   rust-checks:
     name: Rust checks
