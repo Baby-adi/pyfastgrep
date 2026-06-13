@@ -10,7 +10,19 @@ from .pyfastgrep import search_functions_iter as _search_functions_iter
 from .pyfastgrep import search_classes_iter as _search_classes_iter
 from .pyfastgrep import search_imports_iter as _search_imports_iter
 
-def _normalize_search_options(path, glob, max_results, ignore_case, fixed_strings, byte_offset, json, csv, output_path, kwargs):
+
+def _normalize_search_options(
+    path,
+    glob,
+    max_results,
+    ignore_case,
+    fixed_strings,
+    byte_offset,
+    json,
+    csv,
+    output_path,
+    kwargs,
+):
     if "root" in kwargs:
         path = kwargs.pop("root")
     if "limit" in kwargs:
@@ -36,10 +48,32 @@ def _normalize_search_options(path, glob, max_results, ignore_case, fixed_string
         unexpected = ", ".join(sorted(kwargs.keys()))
         raise TypeError(f"unexpected keyword argument(s): {unexpected}")
 
-    return path, glob, max_results, ignore_case, fixed_strings, byte_offset, json, csv_output, output_path
+    return (
+        path,
+        glob,
+        max_results,
+        ignore_case,
+        fixed_strings,
+        byte_offset,
+        json,
+        csv_output,
+        output_path,
+    )
 
 
-def search(pattern, path=".", glob=None, max_results=None, ignore_case=False, json=False, csv=False, output_path=None, fixed_strings=False, byte_offset=False, **kwargs):
+def search(
+    pattern,
+    path=".",
+    glob=None,
+    max_results=None,
+    ignore_case=False,
+    json=False,
+    csv=False,
+    output_path=None,
+    fixed_strings=False,
+    byte_offset=False,
+    **kwargs,
+):
     """
     Search for a pattern in files.
 
@@ -56,12 +90,54 @@ def search(pattern, path=".", glob=None, max_results=None, ignore_case=False, js
     Returns:
         List of tuples (file, line, content) or JSON objects if json=True
     """
-    path, glob, max_results, ignore_case, fixed_strings, byte_offset, json, csv, output_path = _normalize_search_options(
-        path, glob, max_results, ignore_case, fixed_strings, byte_offset, json, csv, output_path, kwargs
+    (
+        path,
+        glob,
+        max_results,
+        ignore_case,
+        fixed_strings,
+        byte_offset,
+        json,
+        csv,
+        output_path,
+    ) = _normalize_search_options(
+        path,
+        glob,
+        max_results,
+        ignore_case,
+        fixed_strings,
+        byte_offset,
+        json,
+        csv,
+        output_path,
+        kwargs,
     )
-    return _search(pattern, path, glob, max_results, ignore_case, json, csv, output_path, fixed_strings, byte_offset)
+    return _search(
+        pattern,
+        path,
+        glob,
+        max_results,
+        ignore_case,
+        json,
+        csv,
+        output_path,
+        fixed_strings,
+        byte_offset,
+    )
 
-def search_iter(pattern, path=".", glob=None, ignore_case=False, json=False, csv=False, output_path=None, fixed_strings=False, byte_offset=False, **kwargs):
+
+def search_iter(
+    pattern,
+    path=".",
+    glob=None,
+    ignore_case=False,
+    json=False,
+    csv=False,
+    output_path=None,
+    fixed_strings=False,
+    byte_offset=False,
+    **kwargs,
+):
     """
     Streaming iterator search for a pattern in files.
 
@@ -77,12 +153,36 @@ def search_iter(pattern, path=".", glob=None, ignore_case=False, json=False, csv
     Returns:
         Iterator yielding tuples (file, line, content) or JSON objects if json=True
     """
-    path, glob, _, ignore_case, fixed_strings, byte_offset, json, csv, output_path = _normalize_search_options(
-        path, glob, None, ignore_case, fixed_strings, byte_offset, json, csv, output_path, kwargs
+    path, glob, _, ignore_case, fixed_strings, byte_offset, json, csv, output_path = (
+        _normalize_search_options(
+            path,
+            glob,
+            None,
+            ignore_case,
+            fixed_strings,
+            byte_offset,
+            json,
+            csv,
+            output_path,
+            kwargs,
+        )
     )
-    return _search_iter(pattern, path, glob, ignore_case, json, csv, output_path, fixed_strings, byte_offset)
+    return _search_iter(
+        pattern,
+        path,
+        glob,
+        ignore_case,
+        json,
+        csv,
+        output_path,
+        fixed_strings,
+        byte_offset,
+    )
 
-def count(pattern, path=".", glob=None, ignore_case=False, fixed_strings=False, **kwargs):
+
+def count(
+    pattern, path=".", glob=None, ignore_case=False, fixed_strings=False, **kwargs
+):
     """
     Count matches per file.
 
@@ -107,7 +207,10 @@ def count(pattern, path=".", glob=None, ignore_case=False, fixed_strings=False, 
         raise TypeError(f"unexpected keyword argument(s): {unexpected}")
     return _search_count(pattern, path, glob, ignore_case, fixed_strings)
 
-def files_with_matches(pattern, path=".", glob=None, ignore_case=False, fixed_strings=False, **kwargs):
+
+def files_with_matches(
+    pattern, path=".", glob=None, ignore_case=False, fixed_strings=False, **kwargs
+):
     """
     Return filenames that contain at least one match.
 
@@ -132,7 +235,17 @@ def files_with_matches(pattern, path=".", glob=None, ignore_case=False, fixed_st
         raise TypeError(f"unexpected keyword argument(s): {unexpected}")
     return _search_files_with_matches(pattern, path, glob, ignore_case, fixed_strings)
 
-def search_with_context(pattern, path=".", glob=None, before_context=0, after_context=0, ignore_case=False, fixed_strings=False, **kwargs):
+
+def search_with_context(
+    pattern,
+    path=".",
+    glob=None,
+    before_context=0,
+    after_context=0,
+    ignore_case=False,
+    fixed_strings=False,
+    **kwargs,
+):
     """
     Search with surrounding context lines.
 
@@ -157,7 +270,10 @@ def search_with_context(pattern, path=".", glob=None, before_context=0, after_co
     if kwargs:
         unexpected = ", ".join(sorted(kwargs.keys()))
         raise TypeError(f"unexpected keyword argument(s): {unexpected}")
-    return _search_with_context(pattern, path, glob, before_context, after_context, ignore_case, fixed_strings)
+    return _search_with_context(
+        pattern, path, glob, before_context, after_context, ignore_case, fixed_strings
+    )
+
 
 def search_functions(target_name, path=".", glob=None):
     """
@@ -173,6 +289,7 @@ def search_functions(target_name, path=".", glob=None):
     """
     return _search_functions(target_name, path, glob)
 
+
 def search_classes(target_name, path=".", glob=None):
     """
     Search for a class/struct by name using AST parsing.
@@ -186,6 +303,7 @@ def search_classes(target_name, path=".", glob=None):
         List of tuples (file, line, content)
     """
     return _search_classes(target_name, path, glob)
+
 
 def search_imports(target_name, path=".", glob=None):
     """
@@ -201,6 +319,7 @@ def search_imports(target_name, path=".", glob=None):
     """
     return _search_imports(target_name, path, glob)
 
+
 def search_functions_iter(target_name, path=".", glob=None):
     """
     Streaming iterator search for a function by name using AST parsing.
@@ -215,6 +334,7 @@ def search_functions_iter(target_name, path=".", glob=None):
     """
     return _search_functions_iter(target_name, path, glob)
 
+
 def search_classes_iter(target_name, path=".", glob=None):
     """
     Streaming iterator search for a class/struct by name using AST parsing.
@@ -228,6 +348,7 @@ def search_classes_iter(target_name, path=".", glob=None):
         Iterator yielding tuples (file, line, content)
     """
     return _search_classes_iter(target_name, path, glob)
+
 
 def search_imports_iter(target_name, path=".", glob=None):
     """
