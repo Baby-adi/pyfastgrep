@@ -1,5 +1,6 @@
 use pyfastgrep_core::{
-    search, search_ast, AstQueryType, SearchConfig, SearchHit,
+    search, search_count, search_files_with_matches,
+    search_ast, AstQueryType, SearchConfig, SearchHit,
 };
 use std::env;
 use std::fs::File;
@@ -33,6 +34,14 @@ fn hits_to_csv(hits: &[SearchHit]) -> String {
     output
 }
 
+fn count_results_to_csv(results: &[(String, usize)]) -> String {
+    let mut output = String::from("file,count\n");
+    for (file, count) in results {
+        output.push_str(&format!("{},{}\n", csv_escape(file), count));
+    }
+    output
+}
+
 fn write_csv_file(path: &str, csv_content: &str) -> Result<(), String> {
     let mut file = File::create(path).map_err(|e| e.to_string())?;
     file.write_all(csv_content.as_bytes()).map_err(|e| e.to_string())?;
@@ -55,6 +64,8 @@ fn main() {
     let mut json = false;
     let mut csv = false;
     let mut output_path: Option<String> = None;
+    let mut count = false;
+    let mut files_with_matches = false;
     let mut ast_mode: Option<AstQueryType> = None;
 
     let mut i = 0;
@@ -82,7 +93,7 @@ fn main() {
             "-j" | "--json" => {
                 json = true;
             }
-            "-c" | "--csv" => {
+            "--csv" => {
                 csv = true;
             }
             "-o" | "--output" => {
@@ -100,6 +111,12 @@ fn main() {
                     std::process::exit(1);
                 }
                 root = PathBuf::from(&args[i]);
+            }
+            "-c" | "--count" => {
+                count = true;
+            }
+            "-l" | "--files-with-matches" => {
+                files_with_matches = true;
             }
             "--functions" => {
                 ast_mode = Some(AstQueryType::Function);
@@ -137,8 +154,30 @@ fn main() {
         std::process::exit(1);
     };
 
-    if json && csv {
-        eprintln!("Error: --json and --csv are mutually exclusive");
+    // Mutually exclusive format flags
+    let format_flags = [("--json", json), ("--csv", csv)];
+    let active_formats: Vec<&str> = format_flags
+        .iter()
+        .filter(|(_, active)| *active)
+        .map(|(name, _)| *name)
+        .collect();
+    if active_formats.len() > 1 {
+        eprintln!("Error: {} are mutually exclusive", active_formats.join(", "));
+        std::process::exit(1);
+    }
+
+    // Mutually exclusive mode flags
+    let mode_flags = [
+        ("--count", count),
+        ("--files-with-matches", files_with_matches),
+    ];
+    let active_modes: Vec<&str> = mode_flags
+        .iter()
+        .filter(|(_, active)| *active)
+        .map(|(name, _)| *name)
+        .collect();
+    if active_modes.len() > 1 {
+        eprintln!("Error: {} are mutually exclusive", active_modes.join(", "));
         std::process::exit(1);
     }
 
@@ -147,7 +186,80 @@ fn main() {
         std::process::exit(1);
     }
 
-    if let Some(query_type) = ast_mode {
+    if count || files_with_matches {
+        if ast_mode.is_some() {
+            eprintln!("Error: AST search does not support --count or --files-with-matches");
+            std::process::exit(1);
+        }
+
+        let mut config = SearchConfig::new(pattern, root);
+        config.glob = glob;
+        config.ignore_case = ignore_case;
+
+        if count {
+            match search_count(&config) {
+                Ok(results) => {
+                    if json {
+                        let json_results: Vec<serde_json::Value> = results
+                            .into_iter()
+                            .map(|(file, count)| {
+                                serde_json::json!({
+                                    "file": file,
+                                    "count": count,
+                                })
+                            })
+                            .collect();
+                        println!("{}", serde_json::to_string_pretty(&json_results).unwrap());
+                    } else if csv {
+                        let csv_output = count_results_to_csv(&results);
+                        if let Some(path) = output_path.as_deref() {
+                            if let Err(err) = write_csv_file(path, &csv_output) {
+                                eprintln!("Error writing CSV output: {err}");
+                                std::process::exit(1);
+                            }
+                        }
+                        print!("{}", csv_output);
+                    } else {
+                        for (file, count) in results {
+                            println!("{}:{}", file, count);
+                        }
+                    }
+                }
+                Err(err) => {
+                    eprintln!("Error: {err}");
+                    std::process::exit(1);
+                }
+            }
+        } else {
+            match search_files_with_matches(&config) {
+                Ok(results) => {
+                    if json {
+                        println!("{}", serde_json::to_string_pretty(&results).unwrap());
+                    } else if csv {
+                        let mut output = String::from("file\n");
+                        for file in &results {
+                            output.push_str(&format!("{}\n", csv_escape(file)));
+                        }
+                        if let Some(path) = output_path.as_deref() {
+                            if let Err(err) = write_csv_file(path, &output) {
+                                eprintln!("Error writing CSV output: {err}");
+                                std::process::exit(1);
+                            }
+                        }
+                        print!("{}", output);
+                    } else {
+                        for file in results {
+                            println!("{}", file);
+                        }
+                    }
+                }
+                Err(err) => {
+                    eprintln!("Error: {err}");
+                    std::process::exit(1);
+                }
+            }
+        }
+    } else if let Some(query_type) = ast_mode {
         // AST search
         match search_ast(&pattern, &root, &glob, query_type) {
             Ok(results) => {
@@ -214,6 +326,6 @@ fn main() {
 
 fn print_usage() {
     eprintln!(
-        "Usage: pyfastgrep <pattern> [root] [--glob <pattern>] [--limit <n>] [--ignore-case] [--json] [--csv] [--output <file>] [--root <path>] [--functions] [--classes] [--imports]"
+        "Usage: pyfastgrep <pattern> [root] [--glob <pattern>] [--limit <n>] [--ignore-case] [--json] [--csv] [--output <file>] [--root <path>] [--count] [--files-with-matches] [--functions] [--classes] [--imports]"
     );
 }

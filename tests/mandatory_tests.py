@@ -166,6 +166,96 @@ def main():
         assert len(with_glob) > 0, "With glob should find results"
         assert len(without_glob) >= len(with_glob), "Without glob should find equal or more"
 
+    def test_python_count():
+        results = pyfastgrep.count("fn", source_root, "*.rs")
+        assert len(results) > 0, "count should find matches in at least one file"
+        assert all(isinstance(r, tuple) and len(r) == 2 for r in results), "Each result should be a (file, count) tuple"
+        assert all(isinstance(r[0], str) and isinstance(r[1], int) and r[1] > 0 for r in results), "Counts should be positive integers"
+
+    def test_python_files_with_matches():
+        results = pyfastgrep.files_with_matches("fn", source_root, "*.rs")
+        assert len(results) > 0, "files_with_matches should find matches"
+        assert all(isinstance(r, str) for r in results), "Each result should be a filename string"
+        assert len(set(results)) == len(results), "Results should not contain duplicates"
+
+    def test_count_respects_ignore_case():
+        sensitive = pyfastgrep.count("FN", source_root, "*.rs")
+        insensitive = pyfastgrep.count("FN", source_root, "*.rs", ignore_case=True)
+        assert sum(c for _, c in sensitive) < sum(c for _, c in insensitive), "Ignore case should find more or equal matches"
+
+    def test_cli_count():
+        cli_result = subprocess.run(
+            [
+                "cargo",
+                "run",
+                "-p",
+                "pyfastgrep-cli",
+                "--",
+                "fn",
+                "src",
+                "--glob",
+                "*.rs",
+                "--ignore-case",
+                "--count",
+            ],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+        )
+        assert cli_result.returncode == 0, f"CLI --count exited with {cli_result.returncode}: {cli_result.stderr}"
+        assert os.path.join("src", "lib.rs") in cli_result.stdout, "CLI count should include lib.rs"
+        assert ":" in cli_result.stdout, "CLI count output should be file:count format"
+
+    def test_cli_files_with_matches():
+        cli_result = subprocess.run(
+            [
+                "cargo",
+                "run",
+                "-p",
+                "pyfastgrep-cli",
+                "--",
+                "fn",
+                "src",
+                "--glob",
+                "*.rs",
+                "--ignore-case",
+                "--files-with-matches",
+            ],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+        )
+        assert cli_result.returncode == 0, f"CLI --files-with-matches exited with {cli_result.returncode}: {cli_result.stderr}"
+        assert os.path.join("src", "lib.rs") in cli_result.stdout, "CLI files-with-matches should include lib.rs"
+        # Output should be just filenames, no colons or line numbers
+        lines = cli_result.stdout.strip().splitlines()
+        assert len(lines) > 0, "Should have at least one filename"
+
+    def test_cli_count_json():
+        cli_result = subprocess.run(
+            [
+                "cargo",
+                "run",
+                "-p",
+                "pyfastgrep-cli",
+                "--",
+                "fn",
+                "src",
+                "--glob",
+                "*.rs",
+                "--ignore-case",
+                "--count",
+                "--json",
+            ],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+        )
+        assert cli_result.returncode == 0
+        parsed = __import__("json").loads(cli_result.stdout)
+        assert isinstance(parsed, list), "JSON count should be a list"
+        assert all("file" in item and "count" in item for item in parsed), "Each item should have file and count keys"
+
     def test_cli_ast_functions():
         cli_result = subprocess.run(
             [
@@ -197,6 +287,12 @@ def main():
         ("Legacy tuple output stays compatible", test_legacy_output_and_consistency),
         ("CLI smoke test passes", test_cli_smoke),
         ("CLI CSV output passes", test_cli_csv),
+        ("Python count works", test_python_count),
+        ("Python files_with_matches works", test_python_files_with_matches),
+        ("Count respects ignore_case", test_count_respects_ignore_case),
+        ("CLI --count works", test_cli_count),
+        ("CLI --files-with-matches works", test_cli_files_with_matches),
+        ("CLI --count with --json works", test_cli_count_json),
         ("Ergonomic aliases work", test_ergonomic_aliases),
         ("AST function search finds matches", test_ast_functions),
         ("AST class search finds matches", test_ast_classes),

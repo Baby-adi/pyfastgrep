@@ -2,6 +2,8 @@ use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
 use pyfastgrep_core::{
     search as core_search, search_stream as core_search_stream,
+    search_count as core_search_count,
+    search_files_with_matches as core_search_files_with_matches,
     search_ast, search_ast_stream,
     SearchConfig, SearchHit, SearchReceiver,
     AstQueryType, AstResultReceiver,
@@ -227,6 +229,30 @@ fn search_iter(
     })
 }
 
+#[pyfunction]
+#[pyo3(signature = (pattern, root, glob=None, ignore_case=None))]
+fn search_count(
+    pattern: String,
+    root: String,
+    glob: Option<String>,
+    ignore_case: Option<bool>,
+) -> PyResult<Vec<(String, usize)>> {
+    let config = build_config(pattern, root, glob, None, ignore_case);
+    core_search_count(&config).map_err(PyValueError::new_err)
+}
+
+#[pyfunction]
+#[pyo3(signature = (pattern, root, glob=None, ignore_case=None))]
+fn search_files_with_matches(
+    pattern: String,
+    root: String,
+    glob: Option<String>,
+    ignore_case: Option<bool>,
+) -> PyResult<Vec<String>> {
+    let config = build_config(pattern, root, glob, None, ignore_case);
+    core_search_files_with_matches(&config).map_err(PyValueError::new_err)
+}
+
 // ---------------------------------------------------------------------------
 // AST search
 // ---------------------------------------------------------------------------
@@ -323,6 +349,8 @@ fn search_imports_iter(
 fn pyfastgrep(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(search, m)?)?;
     m.add_function(wrap_pyfunction!(search_iter, m)?)?;
+    m.add_function(wrap_pyfunction!(search_count, m)?)?;
+    m.add_function(wrap_pyfunction!(search_files_with_matches, m)?)?;
     m.add_function(wrap_pyfunction!(search_functions, m)?)?;
     m.add_function(wrap_pyfunction!(search_classes, m)?)?;
     m.add_function(wrap_pyfunction!(search_imports, m)?)?;

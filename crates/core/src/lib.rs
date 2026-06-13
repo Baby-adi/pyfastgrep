@@ -62,6 +62,45 @@ pub fn search(config: &SearchConfig) -> Result<Vec<SearchHit>, String> {
     Ok(results)
 }
 
+pub fn search_count(config: &SearchConfig) -> Result<Vec<(String, usize)>, String> {
+    let matcher = build_matcher(&config.pattern, config.ignore_case)?;
+    let glob_matcher = build_glob(&config.glob)?;
+    let paths = collect_paths(&config.root, &glob_matcher);
+
+    let results: Vec<(String, usize)> = paths
+        .par_iter()
+        .filter_map(|path| {
+            let count = count_matches_in_file(path, &matcher);
+            if count > 0 {
+                Some((path.display().to_string(), count))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    Ok(results)
+}
+
+pub fn search_files_with_matches(config: &SearchConfig) -> Result<Vec<String>, String> {
+    let matcher = build_matcher(&config.pattern, config.ignore_case)?;
+    let glob_matcher = build_glob(&config.glob)?;
+    let paths = collect_paths(&config.root, &glob_matcher);
+
+    let results: Vec<String> = paths
+        .par_iter()
+        .filter_map(|path| {
+            if file_has_match(path, &matcher) {
+                Some(path.display().to_string())
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    Ok(results)
+}
+
 pub fn search_stream(config: SearchConfig) -> Result<SearchReceiver, String> {
     let matcher = build_matcher(&config.pattern, config.ignore_case)?;
     let glob_matcher = build_glob(&config.glob)?;
@@ -323,6 +362,54 @@ fn search_file(path: &Path, matcher: &RegexMatcher) -> Vec<SearchHit> {
     );
 
     hits
+}
+
+fn count_matches_in_file(path: &Path, matcher: &RegexMatcher) -> usize {
+    let Some(metadata) = path.metadata().ok() else {
+        return 0;
+    };
+
+    if metadata.len() == 0 {
+        return 0;
+    }
+
+    let mut count = 0usize;
+    let mut searcher = SearcherBuilder::new().build();
+
+    let _ = searcher.search_path(
+        matcher,
+        path,
+        UTF8(|_lnum, _line| {
+            count += 1;
+            Ok(true)
+        }),
+    );
+
+    count
+}
+
+fn file_has_match(path: &Path, matcher: &RegexMatcher) -> bool {
+    let Some(metadata) = path.metadata().ok() else {
+        return false;
+    };
+
+    if metadata.len() == 0 {
+        return false;
+    }
+
+    let mut found = false;
+    let mut searcher = SearcherBuilder::new().build();
+
+    let _ = searcher.search_path(
+        matcher,
+        path,
+        UTF8(|_lnum, _line| {
+            found = true;
+            Ok(false) // Stop immediately after first match
+        }),
+    );
+
+    found
 }
 
 fn collect_paths(root: &Path, glob_matcher: &Option<GlobSet>) -> Vec<PathBuf> {

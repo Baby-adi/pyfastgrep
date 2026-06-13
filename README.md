@@ -51,6 +51,12 @@ pyfastgrep.search("fn", "src", "*.rs", as_csv=True, output_path="results.csv")
 # Streaming iterator
 for match in pyfastgrep.search_iter("fn", "src", "*.rs"):
     print(match)
+
+# Count matches per file (returns [(file, count)])
+pyfastgrep.count("fn", "src", "*.rs")
+
+# Filenames with at least one match
+pyfastgrep.files_with_matches("fn", "src", "*.rs")
 ```
 
 ### CLI
@@ -62,6 +68,17 @@ pyfastgrep fn src --glob "*.rs" --ignore-case
 pyfastgrep fn src --glob "*.rs" --ignore-case --json
 pyfastgrep fn src --glob "*.rs" --ignore-case --csv
 pyfastgrep fn src --glob "*.rs" --ignore-case --csv --output results.csv
+```
+
+**New in this branch:** `--count` and `--files-with-matches` flags.
+
+```bash
+# Count matches per file
+pyfastgrep fn src --glob "*.rs" --ignore-case --count
+pyfastgrep fn src --glob "*.rs" --ignore-case --count --json
+
+# Only show filenames with matches
+pyfastgrep fn src --glob "*.rs" --ignore-case --files-with-matches
 ```
 
 You can also run it directly from the workspace while developing:
@@ -76,13 +93,17 @@ CLI output modes:
 cargo run -p pyfastgrep-cli -- fn src --glob "*.rs" --ignore-case --json
 cargo run -p pyfastgrep-cli -- fn src --glob "*.rs" --ignore-case --csv
 cargo run -p pyfastgrep-cli -- fn src --glob "*.rs" --ignore-case --csv --output results.csv
+cargo run -p pyfastgrep-cli -- fn src --glob "*.rs" --ignore-case --count
+cargo run -p pyfastgrep-cli -- fn src --glob "*.rs" --ignore-case --files-with-matches
 ```
 
 CLI flags at a glance:
 
 ```bash
-pyfastgrep <pattern> [root] [--glob <pattern>] [--limit <n>] [--ignore-case] [--json] [--csv] [--output <file>] [--root <path>]
+pyfastgrep <pattern> [root] [--glob <pattern>] [--limit <n>] [--ignore-case] [--json] [--csv] [--output <file>] [--root <path>] [--count] [--files-with-matches]
 ```
+
+> **Breaking change in this branch:** `-c` is now shorthand for `--count` (aligning with ripgrep). Use `--csv` for CSV output (the `-c` shortcut for `--csv` has been removed).
 
 ### AST-powered semantic search
 
