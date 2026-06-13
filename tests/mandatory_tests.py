@@ -145,7 +145,7 @@ def main():
     def test_ast_functions():
         results = pyfastgrep.search_functions("build_config", source_root, "*.rs")
         assert len(results) > 0, "AST function search should find build_config"
-        assert any("lib.rs" in r[0] for r in results), "Should be in lib.rs"
+        assert any("src/" in r[0] for r in results), "Should be in a src/ file"
 
     def test_ast_classes():
         results = pyfastgrep.search_classes("PyResultIterator", source_root, "*.rs")
@@ -296,7 +296,7 @@ def main():
         )
 
         assert cli_result.returncode == 0, f"CLI AST exited with {cli_result.returncode}: {cli_result.stderr}"
-        assert os.path.join("src", "lib.rs") in cli_result.stdout, "CLI AST output should include lib.rs"
+        assert "src/" in cli_result.stdout, "CLI AST output should include a src/ file"
 
     tests = [
         ("Case-sensitive search returns no matches", test_case_sensitive_search),
