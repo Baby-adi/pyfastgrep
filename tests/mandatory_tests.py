@@ -1,13 +1,13 @@
 import sys
-import os
-import subprocess
-import tempfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 sys.path.insert(0, str(REPO_ROOT))
 
+import os
+import subprocess
+import tempfile
 import pyfastgrep
 
 
@@ -145,7 +145,7 @@ def main():
     def test_ast_functions():
         results = pyfastgrep.search_functions("build_config", source_root, "*.rs")
         assert len(results) > 0, "AST function search should find build_config"
-        assert any("src/" in r[0] for r in results), "Should be in a src/ file"
+        assert any("src/" in r[0].replace(os.sep, "/") for r in results), "Should be in a src/ file"
 
     def test_ast_classes():
         results = pyfastgrep.search_classes("PyResultIterator", source_root, "*.rs")
@@ -296,7 +296,7 @@ def main():
         )
 
         assert cli_result.returncode == 0, f"CLI AST exited with {cli_result.returncode}: {cli_result.stderr}"
-        assert "src/" in cli_result.stdout, "CLI AST output should include a src/ file"
+        assert "src/" in cli_result.stdout.replace(os.sep, "/"), "CLI AST output should include a src/ file"
 
     def test_context_search():
         results = pyfastgrep.search_with_context("fn", source_root, "*.rs", before_context=2, after_context=2)
