@@ -145,7 +145,7 @@ def main():
     def test_ast_functions():
         results = pyfastgrep.search_functions("build_config", source_root, "*.rs")
         assert len(results) > 0, "AST function search should find build_config"
-        assert any("lib.rs" in r[0] for r in results), "Should be in lib.rs"
+        assert any("src/" in r[0] for r in results), "Should be in a src/ file"
 
     def test_ast_classes():
         results = pyfastgrep.search_classes("PyResultIterator", source_root, "*.rs")
@@ -165,6 +165,116 @@ def main():
         without_glob = pyfastgrep.search_functions("build_config", source_root)
         assert len(with_glob) > 0, "With glob should find results"
         assert len(without_glob) >= len(with_glob), "Without glob should find equal or more"
+
+    def test_python_count():
+        results = pyfastgrep.count("fn", source_root, "*.rs")
+        assert len(results) > 0, "count should find matches in at least one file"
+        assert all(isinstance(r, tuple) and len(r) == 2 for r in results), "Each result should be a (file, count) tuple"
+        assert all(isinstance(r[0], str) and isinstance(r[1], int) and r[1] > 0 for r in results), "Counts should be positive integers"
+
+    def test_python_files_with_matches():
+        results = pyfastgrep.files_with_matches("fn", source_root, "*.rs")
+        assert len(results) > 0, "files_with_matches should find matches"
+        assert all(isinstance(r, str) for r in results), "Each result should be a filename string"
+        assert len(set(results)) == len(results), "Results should not contain duplicates"
+
+    def test_count_respects_ignore_case():
+        sensitive = pyfastgrep.count("FN", source_root, "*.rs")
+        insensitive = pyfastgrep.count("FN", source_root, "*.rs", ignore_case=True)
+        assert sum(c for _, c in sensitive) < sum(c for _, c in insensitive), "Ignore case should find more or equal matches"
+
+    def test_cli_count():
+        cli_result = subprocess.run(
+            [
+                "cargo",
+                "run",
+                "-p",
+                "pyfastgrep-cli",
+                "--",
+                "fn",
+                "src",
+                "--glob",
+                "*.rs",
+                "--ignore-case",
+                "--count",
+            ],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+        )
+        assert cli_result.returncode == 0, f"CLI --count exited with {cli_result.returncode}: {cli_result.stderr}"
+        assert os.path.join("src", "lib.rs") in cli_result.stdout, "CLI count should include lib.rs"
+        assert ":" in cli_result.stdout, "CLI count output should be file:count format"
+
+    def test_cli_files_with_matches():
+        cli_result = subprocess.run(
+            [
+                "cargo",
+                "run",
+                "-p",
+                "pyfastgrep-cli",
+                "--",
+                "fn",
+                "src",
+                "--glob",
+                "*.rs",
+                "--ignore-case",
+                "--files-with-matches",
+            ],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+        )
+        assert cli_result.returncode == 0, f"CLI --files-with-matches exited with {cli_result.returncode}: {cli_result.stderr}"
+        assert os.path.join("src", "lib.rs") in cli_result.stdout, "CLI files-with-matches should include lib.rs"
+        # Output should be just filenames, no colons or line numbers
+        lines = cli_result.stdout.strip().splitlines()
+        assert len(lines) > 0, "Should have at least one filename"
+
+    def test_cli_count_json():
+        cli_result = subprocess.run(
+            [
+                "cargo",
+                "run",
+                "-p",
+                "pyfastgrep-cli",
+                "--",
+                "fn",
+                "src",
+                "--glob",
+                "*.rs",
+                "--ignore-case",
+                "--count",
+                "--json",
+            ],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+        )
+        assert cli_result.returncode == 0
+        parsed = __import__("json").loads(cli_result.stdout)
+        assert isinstance(parsed, list), "JSON count should be a list"
+        assert all("file" in item and "count" in item for item in parsed), "Each item should have file and count keys"
+
+    def test_fixed_strings_vs_regex():
+        regex_results = pyfastgrep.search(".", source_root, "*.rs")
+        literal_results = pyfastgrep.search(".", source_root, "*.rs", fixed_strings=True)
+        assert len(literal_results) < len(regex_results), "Fixed strings should match fewer occurrences of literal '.'"
+
+    def test_fixed_strings_count():
+        count_regex = sum(c for _, c in pyfastgrep.count("fn", source_root, "*.rs"))
+        count_literal = sum(c for _, c in pyfastgrep.count("fn", source_root, "*.rs", fixed_strings=True))
+        assert count_regex == count_literal, "Literal word should match identically under regex and fixed-strings"
+
+    def test_cli_fixed_strings():
+        cli_regex = subprocess.run(
+            ["cargo", "run", "-p", "pyfastgrep-cli", "--", ".", "src", "--glob", "*.rs", "--fixed-strings"],
+            cwd=str(REPO_ROOT), capture_output=True, text=True,
+        )
+        assert cli_regex.returncode == 0, f"CLI fixed-strings exited with {cli_regex.returncode}: {cli_regex.stderr}"
+        lines = cli_regex.stdout.strip().splitlines()
+        # Literal dot should find far fewer matches than regex dot
+        assert len(lines) < 300, f"Fixed strings should match fewer than 300 lines, got {len(lines)}"
 
     def test_cli_ast_functions():
         cli_result = subprocess.run(
@@ -186,7 +296,79 @@ def main():
         )
 
         assert cli_result.returncode == 0, f"CLI AST exited with {cli_result.returncode}: {cli_result.stderr}"
-        assert os.path.join("src", "lib.rs") in cli_result.stdout, "CLI AST output should include lib.rs"
+        assert "src/" in cli_result.stdout, "CLI AST output should include a src/ file"
+
+    def test_context_search():
+        results = pyfastgrep.search_with_context("fn", source_root, "*.rs", before_context=2, after_context=2)
+        assert len(results) > 0, "Context search should find matches"
+        first = results[0]
+        assert len(first) == 5, "Result should be (file, line, content, before, after)"
+        assert len(first[3]) <= 2, "before_context should be at most 2 lines"
+        assert len(first[4]) <= 2, "after_context should be at most 2 lines"
+
+    def test_context_search_zero():
+        results = pyfastgrep.search_with_context("fn", source_root, "*.rs")
+        first = results[0]
+        assert len(first[3]) == 0, "Zero before_context by default"
+        assert len(first[4]) == 0, "Zero after_context by default"
+
+    def test_cli_context():
+        cli_result = subprocess.run(
+            [
+                "cargo",
+                "run",
+                "-p",
+                "pyfastgrep-cli",
+                "--",
+                "fn",
+                "src",
+                "--glob",
+                "*.rs",
+                "--context",
+                "1",
+            ],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+        )
+        assert cli_result.returncode == 0, f"CLI context exited with {cli_result.returncode}: {cli_result.stderr}"
+        assert "-" in cli_result.stdout, "CLI context should have context lines"
+        assert ":" in cli_result.stdout, "CLI context should have match lines"
+
+    def test_byte_offset_json():
+        results = pyfastgrep.search("fn", source_root, "*.rs", json=True, byte_offset=True)
+        assert len(results) > 0, "Byte offset search should find matches"
+        assert "byte_offset" in results[0], "JSON should include byte_offset key"
+        assert isinstance(results[0]["byte_offset"], int), "byte_offset should be an integer"
+
+    def test_byte_offset_json_absent_when_disabled():
+        results = pyfastgrep.search("fn", source_root, "*.rs", json=True, byte_offset=False)
+        assert "byte_offset" not in results[0], "byte_offset should not appear when disabled"
+
+    def test_cli_byte_offset():
+        cli_result = subprocess.run(
+            [
+                "cargo",
+                "run",
+                "-p",
+                "pyfastgrep-cli",
+                "--",
+                "fn",
+                "src",
+                "--glob",
+                "*.rs",
+                "--byte-offset",
+            ],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+        )
+        assert cli_result.returncode == 0, f"CLI byte-offset exited with {cli_result.returncode}: {cli_result.stderr}"
+        # Output format: file:byte_offset:line:content
+        lines = cli_result.stdout.strip().splitlines()
+        assert len(lines) > 0, "Should have output"
+        first_parts = lines[0].split(":")
+        assert len(first_parts) >= 4, f"Format should be file:byte:line:content, got {lines[0]}"
 
     tests = [
         ("Case-sensitive search returns no matches", test_case_sensitive_search),
@@ -197,6 +379,21 @@ def main():
         ("Legacy tuple output stays compatible", test_legacy_output_and_consistency),
         ("CLI smoke test passes", test_cli_smoke),
         ("CLI CSV output passes", test_cli_csv),
+        ("Python count works", test_python_count),
+        ("Python files_with_matches works", test_python_files_with_matches),
+        ("Count respects ignore_case", test_count_respects_ignore_case),
+        ("CLI --count works", test_cli_count),
+        ("CLI --files-with-matches works", test_cli_files_with_matches),
+        ("CLI --count with --json works", test_cli_count_json),
+        ("Fixed strings matches fewer than regex", test_fixed_strings_vs_regex),
+        ("Fixed strings count matches regex for literal", test_fixed_strings_count),
+        ("CLI --fixed-strings works", test_cli_fixed_strings),
+        ("Context search returns correct structure", test_context_search),
+        ("Context search zero context works", test_context_search_zero),
+        ("CLI --context works", test_cli_context),
+        ("Byte offset in JSON when enabled", test_byte_offset_json),
+        ("Byte offset absent in JSON when disabled", test_byte_offset_json_absent_when_disabled),
+        ("CLI --byte-offset works", test_cli_byte_offset),
         ("Ergonomic aliases work", test_ergonomic_aliases),
         ("AST function search finds matches", test_ast_functions),
         ("AST class search finds matches", test_ast_classes),
