@@ -1,0 +1,37 @@
+name: GitHub Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  check-main-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for branch check
+
+      - name: Verify tag is on main branch
+        run: |
+          TAG_COMMIT=$(git rev-parse HEAD)
+          if ! git branch -a --contains "$TAG_COMMIT" | grep -qE '^\*?\s*(remotes/origin/)?main$'; then
+            echo "Error: Tag $GITHUB_REF_NAME is not on the main branch"
+            exit 1
+          fi
+          echo "Tag $GITHUB_REF_NAME verified on main branch"
+
+  create-release:
+    needs: check-main-branch
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
